@@ -34,6 +34,8 @@ Sell:
 Exit: by DM reverse intersection.
  */
 
+
+// В данном роботе заменил метод GetVolume на более рабочий и без ошибок- 21.12.2025.
 namespace OsEngine.Robots
 {
     [Bot("AAADXBreakPlusMinus")] // Instead of manually adding through BotFactory, we use an attribute to simplify the process.
