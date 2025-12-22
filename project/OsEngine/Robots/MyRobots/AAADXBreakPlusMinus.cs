@@ -190,18 +190,21 @@ namespace OsEngine.Robots
                 decimal _slippage = this._slippage.ValueDecimal * _tab.Securiti.PriceStep;
 
                 // Long
-                if (_regime.ValueString != "OnlyShort") // If the mode is not only short, then we enter long
+                //if (_regime.ValueString != "OnlyShort") // If the mode is not only short, then we enter long
+				if (_regime.ValueString != "OnlyShort") // If the mode is not only short, then we enter long
                 {
-                    if (_prevPlus < _prevMinus && _lastPlus > _lastMinus && _lastADX > _lastMinus && _lastADX > _prevADX)
+					if (_prevPlus < _prevMinus && _lastPlus > _lastMinus)
                     {
                         _tab.BuyAtLimit(GetVolume(_tab), _tab.PriceBestAsk + _slippage);
                     }
                 }
 
-                // Short
-                if (_regime.ValueString != "OnlyLong") // If the mode is not only long, then we enter short
+				// Short
+				//if (_prevMinus < _prevPlus && _lastMinus > _lastPlus && _lastADX > _lastPlus && _lastADX > _prevADX)
+
+				if (_regime.ValueString != "OnlyLong") // If the mode is not only long, then we enter short
                 {
-                    if (_prevMinus < _prevPlus && _lastMinus > _lastPlus && _lastADX > _lastPlus && _lastADX > _prevADX)
+                    if (_prevMinus < _prevPlus && _lastMinus > _lastPlus)
                     {
                         _tab.SellAtLimit(GetVolume(_tab), _tab.PriceBestBid - _slippage);
                     }
