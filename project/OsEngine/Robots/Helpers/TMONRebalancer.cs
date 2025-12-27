@@ -72,6 +72,8 @@ namespace OsEngine.Robots
             _rebalanceNowButton = CreateParameterButton("Rebalance now");
             _rebalanceNowButton.UserClickOnButtonEvent += _rebalanceNowButton_UserClickOnButtonEvent;
 
+            _timeToBuy.ValueChange += _timeToBuy_ValueChange;
+
             if (startProgram == StartProgram.IsOsTrader)
             {
                 Thread thread = new Thread(StartThread);
@@ -88,9 +90,14 @@ namespace OsEngine.Robots
                 "Ru:Робот предназначен для покупки TMON вечером на свободные средства и продаже всего объема TMON утром._");
         }
 
+        private void _timeToBuy_ValueChange()
+        {
+            _timeLast = DateTime.MinValue;
+        }
+
         private void _rebalanceNowButton_UserClickOnButtonEvent()
         {
-            _botClosePositionToday = true;
+            _botClosePositionToday = false;
             Task.Run(RebalanceLogic);
         }
 
