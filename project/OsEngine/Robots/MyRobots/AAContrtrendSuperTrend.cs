@@ -75,8 +75,8 @@ namespace OsEngine.Robots.MyRobots
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime");
 
             // Indicator settings
-            _lengthSP = CreateParameter("Length SP", 15, 10, 200, 10, "Indicator");
-            _spDeviation = CreateParameter("SP Deviation", 2, 1m, 10, 1, "Indicator");
+            _lengthSP = CreateParameter("Length SP", 20, 10, 200, 10, "Indicator");
+            _spDeviation = CreateParameter("SP Deviation", 7, 1m, 10, 1, "Indicator");
             _typePrice = CreateParameter("Type Price", "Median", new[] { "Median", "Typical" }, "Indicator");
             _wicks = CreateParameter("Use Candle Shadow", false, "Indicator");
 
