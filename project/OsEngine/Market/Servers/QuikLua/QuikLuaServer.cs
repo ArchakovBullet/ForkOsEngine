@@ -291,6 +291,8 @@ namespace OsEngine.Market.Servers.QuikLua
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -667,6 +669,21 @@ namespace OsEngine.Market.Servers.QuikLua
 
                 UpdateSpotPortfolio();
                 UpdateFuturesPortfolio();
+
+                string message = "";
+                for (int i = 0; i < _portfolios.Count; i++)
+                {
+                    if (i + 1 < _portfolios.Count)
+                    {
+                        message += "\n" + _portfolios[i].Number + ";";
+                    }
+                    else
+                    {
+                        message += "\n" + _portfolios[i].Number + ".";
+                    }
+                }
+
+                SendLogMessage($"Подгружены портфели: {message}", LogMessageType.System);
 
                 if (PortfolioEvent != null)
                 {
@@ -1197,7 +1214,7 @@ namespace OsEngine.Market.Servers.QuikLua
 
                 PositionOnBoard positionRub = new PositionOnBoard();
 
-                for (int i2 = 0; i2 < money.Count; i2++)
+                for (int i2 = 0; money != null && i2 < money.Count; i2++)
                 {
                     if (clientCode != money[i2].ClientCode || _tradeMode != money[i2].LimitKind) continue;
 

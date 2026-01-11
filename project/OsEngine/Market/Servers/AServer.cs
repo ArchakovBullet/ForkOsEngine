@@ -84,6 +84,8 @@ namespace OsEngine.Market.Servers
                         _serverRealization.Dispose();
                     }
 
+                    _serverRealization.IsCompletelyDeleted = true;
+
                     //_serverRealization = null;
                 }
             }
@@ -307,9 +309,7 @@ namespace OsEngine.Market.Servers
                 task4.Start();
 
                 Task.Run(() => HighPriorityDataThreadArea());
-
                 Task.Run(() => MediumPriorityDataThreadArea());
-
                 Task.Run(() => LowPriorityDataThreadArea());
 
                 _serverIsCreated = true;
@@ -1459,6 +1459,7 @@ namespace OsEngine.Market.Servers
                         {
                             return;
                         }
+
                         await Task.Delay(1);
                     }
                 }
@@ -1668,6 +1669,7 @@ namespace OsEngine.Market.Servers
                         {
                             return;
                         }
+                       
                         await Task.Delay(1);
                     }
                 }
@@ -1874,6 +1876,7 @@ namespace OsEngine.Market.Servers
                         {
                             return;
                         }
+                   
                         await Task.Delay(1);
                     }
                 }
@@ -2123,6 +2126,8 @@ namespace OsEngine.Market.Servers
             ServerRealization.GetSecurities();
         }
 
+        private Dictionary<string, Security> _securitiesDictionary = new Dictionary<string, Security>();
+
         /// <summary>
         /// often used securities. optimizes access to securities
         /// </summary>
@@ -2160,12 +2165,18 @@ namespace OsEngine.Market.Servers
                 }
             }
 
-            for (int i = 0; i < _securities.Count; i++)
+            try
             {
-                if (_securities[i].Name == securityName)
+                Security mySecurity = null;
+
+                if (_securitiesDictionary.TryGetValue(securityName, out mySecurity))
                 {
-                    return _securities[i];
+                    return mySecurity;
                 }
+            }
+            catch
+            {
+                // ignore
             }
 
             return null;
@@ -2249,6 +2260,13 @@ namespace OsEngine.Market.Servers
                         if (isInArray == false)
                         {
                             _securities.Add(securities[i]);
+                        }
+
+                        Security mySecurity;
+
+                        if (_securitiesDictionary.TryGetValue(securities[i].Name, out mySecurity) == false)
+                        {
+                            _securitiesDictionary.Add(securities[i].Name, securities[i]);
                         }
                     }
                     else
@@ -2338,6 +2356,7 @@ namespace OsEngine.Market.Servers
                             securities[j].PriceLimitHigh = curSaveSec.PriceLimitHigh;
                             securities[j].PriceLimitLow = curSaveSec.PriceLimitLow;
                             securities[j].MarginBuy = curSaveSec.MarginBuy;
+                            securities[j].MarginSell = curSaveSec.MarginSell;
                             securities[j].Strike = curSaveSec.Strike;
 
                             break;
@@ -3247,10 +3266,7 @@ namespace OsEngine.Market.Servers
         /// </summary>
         private string _depthsArrayLocker = "depthsLocker";
 
-        /// <summary>
-        /// last bid and ask values by securities
-        /// </summary>
-        private List<BidAskSender> _lastBidAskValues = new List<BidAskSender>();
+        private Dictionary<string, BidAskSender> _lastBidAskValuesDictionary = new Dictionary<string, BidAskSender>();
 
         /// <summary>
         /// new depth event
@@ -3357,48 +3373,26 @@ namespace OsEngine.Market.Servers
                 return;
             }
 
-            Security sec = GetSecurityForName(newMarketDepth.SecurityNameCode, "");
+            BidAskSender newSender = null;
 
-            if (sec == null)
+            if (!_lastBidAskValuesDictionary.TryGetValue(newMarketDepth.SecurityNameCode, out newSender))
             {
-                return;
-            }
+                Security sec = GetSecurityForName(newMarketDepth.SecurityNameCode, "");
 
-            for (int i = 0; i < _lastBidAskValues.Count; i++)
-            {
-                if (_lastBidAskValues[i].Security.Name == sec.Name)
+                if (sec == null)
                 {
-                    if (_lastBidAskValues[i].Bid == bestBid &&
-                        _lastBidAskValues[i].Ask == bestAsk)
-                    {
-                        return;
-                    }
+                    return;
                 }
+
+                newSender = new BidAskSender();
+                newSender.Security = sec;
+                _lastBidAskValuesDictionary.Add(sec.Name, newSender);
             }
 
-            BidAskSender newSender = new BidAskSender();
             newSender.Bid = bestBid;
             newSender.Ask = bestAsk;
-            newSender.Security = sec;
 
             _bidAskToSend.Enqueue(newSender);
-
-            bool isInArray = false;
-
-            for (int i = 0; i < _lastBidAskValues.Count; i++)
-            {
-                if (_lastBidAskValues[i].Security.Name == sec.Name)
-                {
-                    _lastBidAskValues[i] = newSender;
-                    isInArray = true;
-                    break;
-                }
-            }
-
-            if (isInArray == false)
-            {
-                _lastBidAskValues.Add(newSender);
-            }
         }
 
         /// <summary>
@@ -3501,6 +3495,9 @@ namespace OsEngine.Market.Servers
 
                 lock (_newTradesLocker)
                 {
+                    _tradesToSend.Enqueue(trade);
+
+
                     // save / сохраняем
                     if (_allTrades == null)
                     {
@@ -3565,8 +3562,6 @@ namespace OsEngine.Market.Servers
                             _allTrades = allTradesNew;
                         }
                     }
-
-                    _tradesToSend.Enqueue(trade);
                 }
             }
             catch (Exception error)

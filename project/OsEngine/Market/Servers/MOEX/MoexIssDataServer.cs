@@ -73,6 +73,8 @@ namespace OsEngine.Market.Servers.MOEX
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Securities
@@ -149,7 +151,7 @@ namespace OsEngine.Market.Servers.MOEX
 
             List<Security> newSecurities = new List<Security>();
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 8; i++)
             {
                 newSecurities.AddRange(GetFuturesForOneYear(futName, idEnding, DateTime.Now.Year - i - 2000));
             }

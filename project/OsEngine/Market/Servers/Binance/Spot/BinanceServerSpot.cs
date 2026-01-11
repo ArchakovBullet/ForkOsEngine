@@ -61,6 +61,10 @@ namespace OsEngine.Market.Servers.Binance.Spot
             Thread worker3 = new Thread(ConverterUserData);
             worker3.Name = "BinanceSpotThread_ConverterUserData";
             worker3.Start();
+
+            Thread worker4 = new Thread(ConverterPublicDataMarketDepth);
+            worker4.Name = "BinanceSpotThread_ConverterUserDataMarketDepth";
+            worker4.Start();
         }
 
         private WebProxy _myProxy;
@@ -80,11 +84,17 @@ namespace OsEngine.Market.Servers.Binance.Spot
             }
 
             // check server availability for HTTP communication with it 
-            Uri uri = new Uri(_baseUrl + "/v1/time");
+            //Uri uri = new Uri(_baseUrl + "/v1/time");
             try
             {
                 RestRequest requestRest = new RestRequest("/v1/time", Method.GET);
                 RestClient client = new RestClient(_baseUrl);
+
+                if (_myProxy != null)
+                {
+                    client.Proxy = _myProxy;
+                }
+
                 IRestResponse response = client.Execute(requestRest);
 
                 if (response.StatusCode != HttpStatusCode.OK)
@@ -132,10 +142,9 @@ namespace OsEngine.Market.Servers.Binance.Spot
             DisposeSockets();
 
             _subscribedSecurities.Clear();
-            _securities = new List<Security>();
-            _depths.Clear();
             _newMessagePrivate = new ConcurrentQueue<BinanceUserMessage>();
             _newMessagePublic = new ConcurrentQueue<string>();
+            _newMessagePublicMarketDepth = new ConcurrentQueue<string>();
         }
 
         public ServerType ServerType
@@ -152,6 +161,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
         public event Action DisconnectEvent;
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
+
+        public bool IsCompletelyDeleted { get; set; }
 
         #endregion
 
@@ -195,14 +206,16 @@ namespace OsEngine.Market.Servers.Binance.Spot
             }
         }
 
-        private List<Security> _securities;
+        private Dictionary<string, Security> _securitiesDict = new Dictionary<string, Security>();
 
         private void UpdatePairs(SecurityResponce pairs)
         {
-            if (_securities == null)
+            if (_securitiesDict == null)
             {
-                _securities = new List<Security>();
+                _securitiesDict = new Dictionary<string, Security>();
             }
+
+            List<Security> securities = new List<Security>();
 
             foreach (var sec in pairs.symbols)
             {
@@ -268,12 +281,17 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 security.MinTradeAmountType = MinTradeAmountType.C_Currency;
 
                 security.State = SecurityStateType.Activ;
-                _securities.Add(security);
+                securities.Add(security);
+            }
+
+            foreach (Security sec in securities)
+            {
+                _securitiesDict[sec.Name] = sec;
             }
 
             if (SecurityEvent != null)
             {
-                SecurityEvent(_securities);
+                SecurityEvent(securities);
             }
         }
 
@@ -1209,7 +1227,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 {
                     foreach (var ws in _wsStreamsSecurityData)
                     {
-                        ws.Value.OnMessage -= _publicSocketClient_RessageReceived;
+                        ws.Value.OnMessage -= _publicSocketClient_MessageReceived;
                         ws.Value.OnError -= Client_Error;
                         ws.Value.OnClose -= Client_Closed;
                     }
@@ -1373,6 +1391,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
         private ConcurrentQueue<string> _newMessagePublic = new ConcurrentQueue<string>();
 
+        private ConcurrentQueue<string> _newMessagePublicMarketDepth = new ConcurrentQueue<string>();
+
         private void _marginSocketClient_MessageReceived(object sender, MessageEventArgs e)
         {
             UserDataMessageHandler(sender, e, BinanceExchangeType.MarginExchange);
@@ -1397,13 +1417,21 @@ namespace OsEngine.Market.Servers.Binance.Spot
             _newMessagePrivate.Enqueue(message);
         }
 
-        private void _publicSocketClient_RessageReceived(object sender, MessageEventArgs e)
+        private void _publicSocketClient_MessageReceived(object sender, MessageEventArgs e)
         {
             if (ServerStatus == ServerConnectStatus.Disconnect)
             {
                 return;
             }
-            _newMessagePublic.Enqueue(e.Data);
+
+            if (e.Data.Contains("\"lastUpdateId\""))
+            {
+                _newMessagePublicMarketDepth.Enqueue(e.Data);
+            }
+            else
+            {
+                _newMessagePublic.Enqueue(e.Data);
+            }
         }
 
         #endregion
@@ -1419,6 +1447,11 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 try
                 {
                     Thread.Sleep(30000);
+
+                    if(IsCompletelyDeleted == true)
+                    {
+                        return;
+                    }
 
                     if (_spotListenKey == "" &&
                         _marginListenKey == "")
@@ -1517,7 +1550,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                 _wsClient.EmitOnPing = true;
 
-                _wsClient.OnMessage += _publicSocketClient_RessageReceived;
+                _wsClient.OnMessage += _publicSocketClient_MessageReceived;
                 _wsClient.OnError += Client_Error;
                 _wsClient.OnClose += Client_Closed;
                 _wsClient.ConnectAsync();
@@ -1549,6 +1582,11 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 {
                     if (_newMessagePublic.IsEmpty == true)
                     {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
                         Thread.Sleep(1);
                     }
                     else
@@ -1557,12 +1595,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                         if (_newMessagePublic.TryDequeue(out mes))
                         {
-                            if (mes.Contains("\"lastUpdateId\""))
-                            {
-                                var quotes = JsonConvert.DeserializeAnonymousType(mes, new DepthResponse());
-                                UpdateMarketDepth(quotes);
-                            }
-                            else if (mes.Contains("\"e\"" + ":" + "\"trade\""))
+                            if (mes.Contains("\"e\"" + ":" + "\"trade\""))
                             {
                                 var quotes = JsonConvert.DeserializeAnonymousType(mes, new TradeResponse());
                                 UpdateTrades(quotes);
@@ -1587,6 +1620,40 @@ namespace OsEngine.Market.Servers.Binance.Spot
             }
         }
 
+        public void ConverterPublicDataMarketDepth()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (_newMessagePublicMarketDepth.IsEmpty == true)
+                    {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
+
+                        Thread.Sleep(1);
+                    }
+                    else
+                    {
+                        string mes;
+
+                        if (_newMessagePublicMarketDepth.TryDequeue(out mes))
+                        {
+                            var quotes = JsonConvert.DeserializeAnonymousType(mes, new DepthResponse());
+                            UpdateMarketDepth(quotes);
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    SendLogMessage(exception.ToString(), LogMessageType.Error);
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
         public void ConverterUserData()
         {
             while (true)
@@ -1595,6 +1662,10 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 {
                     if (_newMessagePrivate.IsEmpty == true)
                     {
+                        if (IsCompletelyDeleted == true)
+                        {
+                            return;
+                        }
                         Thread.Sleep(1);
                     }
                     else
@@ -1969,12 +2040,9 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
         private int GetDecimalsVolume(string security)
         {
-            for (int i = 0; i < _securities.Count; i++)
+            if (_securitiesDict.TryGetValue(security, out Security sec))
             {
-                if (security == _securities[i].Name)
-                {
-                    return _securities[i].DecimalsVolume;
-                }
+                return sec.DecimalsVolume;
             }
 
             return 0;
@@ -2004,37 +2072,29 @@ namespace OsEngine.Market.Servers.Binance.Spot
             return null;
         }
 
-        private readonly object _newTradesLoker = new object();
-
         private void UpdateTrades(TradeResponse trades)
         {
-            lock (_newTradesLoker)
+            if (trades.data == null)
             {
-                if (trades.data == null)
-                {
-                    return;
-                }
-                Trade trade = new Trade();
-                trade.SecurityNameCode = trades.data.s;
-                trade.Price =
-                        trades.data.p.ToDecimal();
-                trade.Id = trades.data.t.ToString();
-                trade.Time = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(trades.data.T));
-                trade.Volume =
-                        trades.data.q.ToDecimal();
-                trade.Side = trades.data.m == true ? Side.Sell : Side.Buy;
-
-                NewTradesEvent?.Invoke(trade);
+                return;
             }
-        }
+            Trade trade = new Trade();
+            trade.SecurityNameCode = trades.data.s;
+            trade.Price =
+                    trades.data.p.ToDecimal();
+            trade.Id = trades.data.t.ToString();
+            trade.Time = new DateTime(1970, 1, 1).AddMilliseconds(Convert.ToDouble(trades.data.T));
+            trade.Volume =
+                    trades.data.q.ToDecimal();
+            trade.Side = trades.data.m == true ? Side.Sell : Side.Buy;
 
-        private List<MarketDepth> _depths = new List<MarketDepth>();
+            NewTradesEvent?.Invoke(trade);
+        }
 
         private void UpdateMarketDepth(DepthResponse myDepth)
         {
             try
             {
-
                 if (myDepth.data.asks == null || myDepth.data.asks.Count == 0 ||
                     myDepth.data.bids == null || myDepth.data.bids.Count == 0)
                 {
@@ -2043,23 +2103,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                 string secName = myDepth.stream.Split('@')[0].ToUpper();
 
-                MarketDepth needDepth = null;
-
-                for (int i = 0; i < _depths.Count; i++)
-                {
-                    if (_depths[i].SecurityNameCode == secName)
-                    {
-                        needDepth = _depths[i];
-                        break;
-                    }
-                }
-
-                if (needDepth == null)
-                {
-                    needDepth = new MarketDepth();
-                    needDepth.SecurityNameCode = secName;
-                    _depths.Add(needDepth);
-                }
+                MarketDepth  needDepth = new MarketDepth();
+                needDepth.SecurityNameCode = secName;
 
                 List<MarketDepthLevel> ascs = new List<MarketDepthLevel>();
                 List<MarketDepthLevel> bids = new List<MarketDepthLevel>();
@@ -2068,12 +2113,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 {
                     ascs.Add(new MarketDepthLevel()
                     {
-                        Ask =
-                            myDepth.data.asks[i][1].ToString().ToDouble()
-                        ,
-                        Price =
-                            myDepth.data.asks[i][0].ToString().ToDouble()
-
+                        Ask = myDepth.data.asks[i][1].ToString().ToDouble(),
+                        Price = myDepth.data.asks[i][0].ToString().ToDouble()
                     });
                 }
 
@@ -2081,11 +2122,8 @@ namespace OsEngine.Market.Servers.Binance.Spot
                 {
                     bids.Add(new MarketDepthLevel()
                     {
-                        Bid =
-                            myDepth.data.bids[i][1].ToString().ToDouble()
-                        ,
-                        Price =
-                            myDepth.data.bids[i][0].ToString().ToDouble()
+                        Bid = myDepth.data.bids[i][1].ToString().ToDouble(),
+                        Price = myDepth.data.bids[i][0].ToString().ToDouble()
                     });
                 }
 
@@ -2108,14 +2146,7 @@ namespace OsEngine.Market.Servers.Binance.Spot
 
                 if (MarketDepthEvent != null)
                 {
-                    if (_newMessagePublic.Count < 1000)
-                    {
-                        MarketDepthEvent(needDepth.GetCopy());
-                    }
-                    else
-                    {
-                        MarketDepthEvent(needDepth);
-                    }
+                    MarketDepthEvent(needDepth);
                 }
             }
             catch (Exception error)

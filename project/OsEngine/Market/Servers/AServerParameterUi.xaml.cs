@@ -103,6 +103,11 @@ namespace OsEngine.Market.Servers
                     return;
                 }
 
+                if(_server == null)
+                {
+                    return;
+                }
+                
                 string title = OsLocalization.Market.TitleAServerParametrUi + _server.ServerType;
 
                 bool haveNoTradePeriodsConnection = false;
@@ -318,6 +323,11 @@ namespace OsEngine.Market.Servers
             {
                 int row = e.RowIndex;
                 int column = e.ColumnIndex;
+
+                if(row == -1)
+                {
+                    return;
+                }
 
                 if (row > -1 &&
                     row < _gridConnections.Rows.Count - 1)
@@ -818,6 +828,11 @@ namespace OsEngine.Market.Servers
             {
                 int row = e.RowIndex;
                 int col = e.ColumnIndex;
+
+                if(row < 0 || col < 0)
+                {
+                    return;
+                }
 
                 if (col != 3)
                 {

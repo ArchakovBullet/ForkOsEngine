@@ -110,6 +110,8 @@ namespace OsEngine.Market.Servers.Finam
 
         public event Action ForceCheckOrdersAfterReconnectEvent { add { } remove { } }
 
+        public bool IsCompletelyDeleted { get; set; }
+
         #endregion
 
         #region 2 Properties
@@ -553,7 +555,7 @@ namespace OsEngine.Market.Servers.Finam
         public void GetPortfolios()
         {
             Portfolio newPortfolio = new Portfolio();
-            newPortfolio.Number = "Finam Virtual Portfolio";
+            newPortfolio.Number = "FinamVirtual";
             newPortfolio.ValueCurrent = 1;
             _myPortfolios.Add(newPortfolio);
 
