@@ -19,8 +19,8 @@ using OsEngine.Language;
 namespace OsEngine.Robots.MyRobots
 {
 
-	// Используются настройки: Length SP = 15 , SP Deviation = 2 --- 19.08.2025
-	// добавляю индикатор ForceIndexZero - 26.08.2025
+	// Используются настройки: Length SP = 20 , SP Deviation = 7 --- 16.01.2026
+
 
 
 	[Bot("AAContrtrendSuperTrend")] // We create an attribute so that we don't write anything to the BotFactory
@@ -56,7 +56,7 @@ namespace OsEngine.Robots.MyRobots
 
 		// Indicator
 		private Aindicator _SP;
-        private Aindicator _FIZ;
+        //private Aindicator _FIZ;
 
         public AAContrtrendSuperTrend(string name, StartProgram startProgram) : base(name, startProgram)
         {
@@ -84,10 +84,10 @@ namespace OsEngine.Robots.MyRobots
 			_lengthFI = CreateParameter("FIZero Length", 43, 7, 48, 7, "Indicator");
 
 			// Create indicator FI
-			_FIZ = IndicatorsFactory.CreateIndicatorByName("ForceIndexZero", name + "ForceIndexZero", false);
-			_FIZ = (Aindicator)_tab.CreateCandleIndicator(_FIZ, "NewArea");
-			((IndicatorParameterInt)_FIZ.Parameters[0]).ValueInt = _lengthFI.ValueInt;
-			_FIZ.Save();
+			//_FIZ = IndicatorsFactory.CreateIndicatorByName("ForceIndexZero", name + "ForceIndexZero", false);
+			//_FIZ = (Aindicator)_tab.CreateCandleIndicator(_FIZ, "NewArea");
+			//((IndicatorParameterInt)_FIZ.Parameters[0]).ValueInt = _lengthFI.ValueInt;
+			//_FIZ.Save();
 
 			// Create indicator SuperTrend
 			_SP = IndicatorsFactory.CreateIndicatorByName("SuperTrend_indicator", name + "SuperTrend", false);
@@ -123,9 +123,9 @@ namespace OsEngine.Robots.MyRobots
             _SP.Save();
             _SP.Reload();
 
-			((IndicatorParameterInt)_FIZ.Parameters[0]).ValueInt = _lengthFI.ValueInt;
-			_FIZ.Save();
-			_FIZ.Reload();
+			//((IndicatorParameterInt)_FIZ.Parameters[0]).ValueInt = _lengthFI.ValueInt;
+			//_FIZ.Save();
+			//_FIZ.Reload();
 
 		}
 
@@ -191,10 +191,10 @@ namespace OsEngine.Robots.MyRobots
             decimal lastSp = _SP.DataSeries[2].Last;
 
 			// The last value of the indicator
-			_lastFI = _FIZ.DataSeries[0].Last;
+			//_lastFI = _FIZ.DataSeries[0].Last;
 
-			// The prev value of the indicator
-			_prevFI = _FIZ.DataSeries[0].Values[_FIZ.DataSeries[0].Values.Count - 2];
+			//// The prev value of the indicator
+			//_prevFI = _FIZ.DataSeries[0].Values[_FIZ.DataSeries[0].Values.Count - 2];
 
 
 			if (openPositions == null || openPositions.Count == 0)
@@ -236,10 +236,10 @@ namespace OsEngine.Robots.MyRobots
             decimal _slippage = this._slippage.ValueDecimal * _tab.Securiti.PriceStep;
 
 			// The last value of the indicator
-			_lastFI = _FIZ.DataSeries[0].Last;
+			//_lastFI = _FIZ.DataSeries[0].Last;
 
-			// The prev value of the indicator
-			_prevFI = _FIZ.DataSeries[0].Values[_FIZ.DataSeries[0].Values.Count - 2];
+			//// The prev value of the indicator
+			//_prevFI = _FIZ.DataSeries[0].Values[_FIZ.DataSeries[0].Values.Count - 2];
 
 
 			for (int i = 0; openPositions != null && i < openPositions.Count; i++)
