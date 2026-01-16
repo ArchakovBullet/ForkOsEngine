@@ -112,8 +112,6 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 return;
             }
 
-            // check server availability for HTTP communication with it / проверяем доступность сервера для HTTP общения с ним
-            //Uri uri = new Uri(_baseUrl + "/" + type_str_selector + "/v1/time");
             try
             {
                 RestRequest requestRest = new RestRequest("/" + type_str_selector + "/v1/time", Method.GET);
@@ -596,19 +594,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     newPortf.UnrealizedPnl =
                         onePortf.unrealizedProfit.ToDecimal();
 
-                    decimal lockedBalanceUSDT = 0m;
-
-                    if (onePortf.asset.Equals("USDT"))
-                    {
-                        foreach (var position in portfs.positions)
-                        {
-                            if (position.symbol == "USDTUSDT") continue;
-
-                            lockedBalanceUSDT += (position.initialMargin.ToDecimal() + position.maintMargin.ToDecimal());
-                        }
-                    }
-
-                    newPortf.ValueBlocked = lockedBalanceUSDT;
+                    newPortf.ValueBlocked = onePortf.initialMargin.ToDecimal() + onePortf.maintMargin.ToDecimal();
 
                     myPortfolio.SetNewPosition(newPortf);
 
@@ -751,38 +737,16 @@ namespace OsEngine.Market.Servers.Binance.Futures
 
         public List<Candle> GetLastCandleHistory(Security security, TimeFrameBuilder timeFrameBuilder, int candleCount)
         {
-            List<Candle> candles = GetCandles(security.Name, timeFrameBuilder.TimeFrameTimeSpan);
+            int tfTotalMinutes = (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
+            DateTime endTime = DateTime.UtcNow;
+            DateTime startTime = endTime.AddMinutes(-tfTotalMinutes * candleCount);
 
-            for (int i = 1; candles != null && i < candles.Count; i++)
-            {
-                if (candles[i - 1].TimeStart == candles[i].TimeStart)
-                {
-                    candles.RemoveAt(i);
-                    i--;
-                }
-            }
-
-            if (candles != null && candles.Count != 0)
-            {
-                for (int i = 0; i < candles.Count; i++)
-                {
-                    candles[i].State = CandleState.Finished;
-                }
-                candles[candles.Count - 1].State = CandleState.Started;
-            }
-
-            return candles;
+            return GetCandleDataToSecurity(security, timeFrameBuilder, startTime, endTime, startTime);
         }
 
         public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder,
             DateTime startTime, DateTime endTime, DateTime actualTime)
         {
-            //if (timeFrameBuilder.TimeFrame == TimeFrame.Hour2
-            //    || timeFrameBuilder.TimeFrame == TimeFrame.Hour4)
-            //{
-            //    return null;
-            //}
-
             if (actualTime > endTime)
             {
                 return null;
@@ -791,7 +755,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
             if (endTime > DateTime.Now - new TimeSpan(0, 0, 1, 0))
                 endTime = DateTime.Now - new TimeSpan(0, 0, 1, 0);
 
-            int interval = 500 * (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
+            int interval = 1500 * (int)timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes;
 
             List<Candle> candles = new List<Candle>();
 
@@ -834,7 +798,7 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     break;
                 }
 
-                Thread.Sleep(300);
+                Thread.Sleep(30);
             }
 
             if (candles.Count == 0)
@@ -926,9 +890,14 @@ namespace OsEngine.Market.Servers.Binance.Futures
             if (needTf != "2m" && needTf != "10m" && needTf != "20m" && needTf != "45m")
             {
                 var param = new Dictionary<string, string>();
-                param.Add("symbol=" + nameSec.ToUpper(), "&interval=" + needTf + "&startTime=" + startTime + "&endTime=" + endTime);
+                param.Add("symbol=" + nameSec.ToUpper(), "&interval=" + needTf + "&startTime=" + startTime + "&endTime=" + endTime + "&limit=1500");
 
-                var res = CreateQuery(Method.GET, endPoint, param, false);
+                string res = CreateQuery(Method.GET, endPoint, param, false);
+
+                if (string.IsNullOrEmpty(res))
+                {
+                    return null;
+                }
 
                 var candles = _deserializeCandles(res);
                 return candles;
@@ -941,6 +910,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=1m" + "&startTime=" + startTime + "&endTime=" + endTime);
                     var res = CreateQuery(Method.GET, endPoint, param, false);
+
+                    if (string.IsNullOrEmpty(res))
+                    {
+                        return null;
+                    }
+
                     var candles = _deserializeCandles(res);
 
                     var newCandles = BuildCandles(candles, 2, 1);
@@ -951,6 +926,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m" + "&startTime=" + startTime + "&endTime=" + endTime);
                     var res = CreateQuery(Method.GET, endPoint, param, false);
+
+                    if (string.IsNullOrEmpty(res))
+                    {
+                        return null;
+                    }
+
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 10, 5);
                     return newCandles;
@@ -960,6 +941,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=5m" + "&startTime=" + startTime + "&endTime=" + endTime);
                     var res = CreateQuery(Method.GET, endPoint, param, false);
+
+                    if (string.IsNullOrEmpty(res))
+                    {
+                        return null;
+                    }
+
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 20, 5);
                     return newCandles;
@@ -969,6 +956,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                     var param = new Dictionary<string, string>();
                     param.Add("symbol=" + nameSec.ToUpper(), "&interval=15m" + "&startTime=" + startTime + "&endTime=" + endTime);
                     var res = CreateQuery(Method.GET, endPoint, param, false);
+
+                    if (string.IsNullOrEmpty(res))
+                    {
+                        return null;
+                    }
+
                     var candles = _deserializeCandles(res);
                     var newCandles = BuildCandles(candles, 45, 15);
                     return newCandles;
@@ -3027,7 +3020,12 @@ namespace OsEngine.Market.Servers.Binance.Futures
                 param.Add("symbol=", oldOrder.SecurityNameCode.ToUpper());
                 //param.Add("&recvWindow=" , "100");
                 //param.Add("&limit=", GetNonce());
-                param.Add("&limit=", "500");
+
+                if (((ServerParameterEnum)ServerParameters[2]).Value == "USDT-M")
+                {
+                    param.Add("&limit=", "500");
+                }
+
                 //"symbol={symbol.ToUpper()}&recvWindow={recvWindow}"
 
                 string res = CreateQuery(Method.GET, endPoint, param, true);

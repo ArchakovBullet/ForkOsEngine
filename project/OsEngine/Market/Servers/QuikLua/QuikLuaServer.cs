@@ -167,6 +167,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     QuikLua.Events.OnMoneyLimit += Events_OnMoneyLimit;
                     QuikLua.Events.OnTrade += EventsOnOnTrade;
                     QuikLua.Events.OnOrder += EventsOnOnOrder;
+                    QuikLua.Events.OnAllTrade += EventsOnOnAllTrade;
                     QuikLua.Events.OnQuote += EventsOnOnQuote;
                     QuikLua.Events.OnFuturesClientHolding += EventsOnOnFuturesClientHolding;
                     QuikLua.Events.OnFuturesLimitChange += EventsOnOnFuturesLimitChange;
@@ -174,9 +175,40 @@ namespace OsEngine.Market.Servers.QuikLua
 
                     QuikLua.Service.QuikService.Start();
 
+                    _clientCodes = new List<string>();
+                    _futuresCodes = new List<string>();
+
                     if (string.IsNullOrEmpty(ClientCodeFromSettings.Value) == false)
                     {
-                        _clientCodes = [ClientCodeFromSettings.Value];
+                        List<string> spotClientCodes = QuikLua.Class.GetClientCodes().Result;
+                        bool inArray = false;
+
+                        // Проверяем клиентские коды для спота
+                        for (int i = 0; i < spotClientCodes.Count; i++)
+                        {
+                            if (spotClientCodes[i] == ClientCodeFromSettings.Value)
+                            {
+                                _clientCodes = [ClientCodeFromSettings.Value];
+                                inArray = true;
+                                break;
+                            }
+                        }
+
+                        // Проверяем торговые счета для фьючерсов
+                        if (inArray == false)
+                        {
+                            List<FuturesLimits> futuresLimits = QuikLua.Trading.GetFuturesClientLimits().Result;
+
+                            for (int i = 0; i < futuresLimits.Count; i++)
+                            {
+                                if (futuresLimits[i].TrdAccId == ClientCodeFromSettings.Value)
+                                {
+                                    _futuresCodes = [ClientCodeFromSettings.Value];
+                                    inArray = true;
+                                    break;
+                                }
+                            }
+                        }
                     }
 
                     bool isConnected = QuikLua.Service.IsConnected().Result;
@@ -194,6 +226,8 @@ namespace OsEngine.Market.Servers.QuikLua
                         ServerStatus = ServerConnectStatus.Connect;
                         ConnectEvent();
                     }
+
+                    _portfolioCounter = 0;
                 }
             }
             catch (Exception error)
@@ -230,6 +264,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     QuikLua.Events.OnTrade -= EventsOnOnTrade;
                     QuikLua.Events.OnOrder -= EventsOnOnOrder;
                     QuikLua.Events.OnQuote -= EventsOnOnQuote;
+                    QuikLua.Events.OnAllTrade -= EventsOnOnAllTrade;
                     QuikLua.Events.OnFuturesClientHolding -= EventsOnOnFuturesClientHolding;
                     QuikLua.Events.OnFuturesLimitChange -= EventsOnOnFuturesLimitChange;
                     QuikLua.Events.OnTransReply -= Events_OnTransReply;
@@ -239,6 +274,12 @@ namespace OsEngine.Market.Servers.QuikLua
                 {
                     _clientCodes.Clear();
                     _clientCodes = null;
+                }
+
+                if (_futuresCodes != null)
+                {
+                    _futuresCodes.Clear();
+                    _futuresCodes = null;
                 }
 
                 if (_queueMyTrades != null) _queueMyTrades.Clear();
@@ -251,11 +292,13 @@ namespace OsEngine.Market.Servers.QuikLua
 
                 subscribedSecurities = new List<Security>();
                 QuikLua = null;
+                _portfolioCounter = 0;
 
                 _lastTimePingMarketDepth = DateTime.MinValue;
                 _lastTimePingMyOrders = DateTime.MinValue;
                 _lastTimePingPortfoios = DateTime.MinValue;
                 _lastTimePingTrades = DateTime.MinValue;
+                _lastTimeUpdatePortfolio = DateTime.MinValue;
 
                 if (ServerStatus != ServerConnectStatus.Disconnect)
                 {
@@ -335,7 +378,13 @@ namespace OsEngine.Market.Servers.QuikLua
 
         private bool _needRequestPositions = false;
 
+        private int _portfolioCounter;
+
+        private DateTime _lastTimeUpdatePortfolio = DateTime.MinValue;
+
         private List<string> _clientCodes;
+
+        private List<string> _futuresCodes;
 
         private readonly Char _separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
 
@@ -656,12 +705,6 @@ namespace OsEngine.Market.Servers.QuikLua
                     return;
                 }
 
-                if (_clientCodes == null)
-                {
-                    _clientCodes = new List<string>();
-                    _clientCodes = QuikLua.Class.GetClientCodes().Result;
-                }
-
                 if (_portfolios == null)
                 {
                     _portfolios = new List<Portfolio>();
@@ -670,20 +713,7 @@ namespace OsEngine.Market.Servers.QuikLua
                 UpdateSpotPortfolio();
                 UpdateFuturesPortfolio();
 
-                string message = "";
-                for (int i = 0; i < _portfolios.Count; i++)
-                {
-                    if (i + 1 < _portfolios.Count)
-                    {
-                        message += "\n" + _portfolios[i].Number + ";";
-                    }
-                    else
-                    {
-                        message += "\n" + _portfolios[i].Number + ".";
-                    }
-                }
-
-                SendLogMessage($"Подгружены портфели: {message}", LogMessageType.System);
+                _lastTimeUpdatePortfolio = DateTime.Now;
 
                 if (PortfolioEvent != null)
                 {
@@ -708,9 +738,9 @@ namespace OsEngine.Market.Servers.QuikLua
                 {
                     bool inArray = false;
 
-                    for (int i2 = 0; i2 < _clientCodes.Count; i2++)
+                    for (int i2 = 0; i2 < _futuresCodes.Count; i2++)
                     {
-                        if (futuresLimits[i].TrdAccId == _clientCodes[i2])
+                        if (futuresLimits[i].TrdAccId == _futuresCodes[i2])
                         {
                             inArray = true;
                             break;
@@ -729,7 +759,7 @@ namespace OsEngine.Market.Servers.QuikLua
                     if (futuresLimits[i].LimitType != 0) continue;
                     else if (inArray == true) continue;
 
-                    _clientCodes.Add(futuresLimits[i].TrdAccId);
+                    _futuresCodes.Add(futuresLimits[i].TrdAccId);
 
                     Portfolio portfolio = new Portfolio();
                     portfolio.ServerType = ServerType.QuikLua;
@@ -812,6 +842,8 @@ namespace OsEngine.Market.Servers.QuikLua
         {
             try
             {
+                _clientCodes = QuikLua.Class.GetClientCodes().Result;
+
                 List<TradesAccounts> accaunts = QuikLua.Class.GetTradeAccounts().Result;
 
                 List<MoneyLimitEx> money = QuikLua.Trading.GetMoneyLimits().Result;
@@ -1115,6 +1147,16 @@ namespace OsEngine.Market.Servers.QuikLua
                             }
                         }
                     }
+                    else if (_portfolioCounter <= 10 && _lastTimeUpdatePortfolio != DateTime.MinValue && _lastTimeUpdatePortfolio.AddMinutes(1) < DateTime.Now)
+                    {
+                        GetPortfolios();
+
+                        _portfolioCounter++;
+                    }
+                    else if (_portfolioCounter > 10 && _lastTimeUpdatePortfolio != DateTime.MinValue && _lastTimeUpdatePortfolio.AddHours(1) < DateTime.Now)
+                    {
+                        GetPortfolios();
+                    }
                     else if (_needRequestPositions == true)
                     {
                         List<DepoLimitEx> spotPos = QuikLua.Trading.GetDepoLimits().Result;
@@ -1181,22 +1223,25 @@ namespace OsEngine.Market.Servers.QuikLua
                         sec = subscribedSecurities.Find(sec => sec.Name.Split('+')[0] == pos.SecCode);
                     }
 
-                    if (sec == null)
-                    {
-                        _needRequestPositions = true;
-                        continue;
-                    }
-                    else
-                    {
-                        _needRequestPositions = false;
-                    }
-
                     LimitKind limitKind = LimitKind.T0;
 
                     if (_tradeMode == 0) limitKind = LimitKind.T0;
                     else if (_tradeMode == 1) limitKind = LimitKind.T1;
                     else if (_tradeMode == 2) limitKind = LimitKind.T2;
                     else limitKind = LimitKind.NotImplemented;
+
+                    if (sec == null)
+                    {
+                        if (pos.LimitKind != limitKind)
+                            _needRequestPositions = false;
+                        else
+                            _needRequestPositions = true;
+                        continue;
+                    }
+                    else
+                    {
+                        _needRequestPositions = false;
+                    }
 
                     PositionOnBoard position = new PositionOnBoard();
 
@@ -1463,6 +1508,8 @@ namespace OsEngine.Market.Servers.QuikLua
         {
             try
             {
+                _gateToGetCandles.WaitToProceed();
+
                 if (subscribedSecurities.Find(sec => sec.Name == security.Name) != null)
                 {
                     return;
@@ -1477,8 +1524,6 @@ namespace OsEngine.Market.Servers.QuikLua
                 {
                     QuikLua.OrderBook.Subscribe(security.NameClass, security.Name.Split('+')[0]);
                     subscribedSecurities.Add(security);
-                    QuikLua.Events.OnAllTrade -= EventsOnOnAllTrade;
-                    QuikLua.Events.OnAllTrade += EventsOnOnAllTrade;
                 }
             }
             catch (Exception error)

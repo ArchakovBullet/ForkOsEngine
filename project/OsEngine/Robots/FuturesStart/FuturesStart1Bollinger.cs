@@ -5,6 +5,7 @@
 
 using OsEngine.Entity;
 using OsEngine.Indicators;
+using OsEngine.Language;
 using OsEngine.Market;
 using OsEngine.Market.Servers;
 using OsEngine.OsTrader.Panels;
@@ -85,6 +86,7 @@ namespace OsEngine.Robots.FuturesStart
         private StrategyParameterDecimal _bollingerDeviation;
 
         private StrategyParameterString _contangoFilterRegime;
+        private StrategyParameterInt _contangoFilterCountSecurities;
         private StrategyParameterInt _contangoStageToTradeLong;
         private StrategyParameterInt _contangoStageToTradeShort;
         private StrategyParameterDecimal _contangoCoefficient1;
@@ -97,6 +99,72 @@ namespace OsEngine.Robots.FuturesStart
         private StrategyParameterDecimal _contangoCoefficient8;
         private StrategyParameterDecimal _contangoCoefficient9;
         private StrategyParameterDecimal _contangoCoefficient10;
+
+        private StrategyParameterBool _tradeRegimeSecurity1;
+        private StrategyParameterBool _tradeRegimeSecurity2;
+        private StrategyParameterBool _tradeRegimeSecurity3;
+        private StrategyParameterBool _tradeRegimeSecurity4;
+        private StrategyParameterBool _tradeRegimeSecurity5;
+        private StrategyParameterBool _tradeRegimeSecurity6;
+        private StrategyParameterBool _tradeRegimeSecurity7;
+        private StrategyParameterBool _tradeRegimeSecurity8;
+        private StrategyParameterBool _tradeRegimeSecurity9;
+        private StrategyParameterBool _tradeRegimeSecurity10;
+
+        private bool CanTradeThisSecurity(string securityName)
+        {
+            if (this.TabsSimple[0].Security != null
+                   && this.TabsSimple[0].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity1.ValueBool;
+            }
+            if (this.TabsSimple[1].Security != null
+                && this.TabsSimple[1].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity2.ValueBool;
+            }
+            if (this.TabsSimple[2].Security != null
+                && this.TabsSimple[2].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity3.ValueBool;
+            }
+            if (this.TabsSimple[3].Security != null
+                && this.TabsSimple[3].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity4.ValueBool;
+            }
+            if (this.TabsSimple[4].Security != null
+                && this.TabsSimple[4].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity5.ValueBool;
+            }
+            if (this.TabsSimple[5].Security != null
+               && this.TabsSimple[5].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity6.ValueBool;
+            }
+            if (this.TabsSimple[6].Security != null
+               && this.TabsSimple[6].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity7.ValueBool;
+            }
+            if (this.TabsSimple[7].Security != null
+                && this.TabsSimple[7].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity8.ValueBool;
+            }
+            if (this.TabsSimple[8].Security != null
+                && this.TabsSimple[8].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity9.ValueBool;
+            }
+            if (this.TabsSimple[9].Security != null
+                && this.TabsSimple[9].Security.Name == securityName)
+            {
+                return _tradeRegimeSecurity10.ValueBool;
+            }
+            return false;
+        }
 
         // Trade periods
         private NonTradePeriods _tradePeriodsSettings;
@@ -135,8 +203,8 @@ namespace OsEngine.Robots.FuturesStart
             _tradePeriodsShowDialogButton = CreateParameterButton("Non trade periods", "Base");
             _tradePeriodsShowDialogButton.UserClickOnButtonEvent += _tradePeriodsShowDialogButton_UserClickOnButtonEvent;
 
-            _bollingerLength = CreateParameter("Bollinger Length", 150, 20, 300, 10, "Base");
-            _bollingerDeviation = CreateParameter("Bollinger deviation", 1.7m, 1, 4, 0.1m, "Base");
+            _bollingerLength = CreateParameter("Bollinger Length", 150, 40, 300, 10, "Base");
+            _bollingerDeviation = CreateParameter("Bollinger deviation", 1.7m, 0.5m, 4, 0.1m, "Base");
 
             // GetVolume settings
             _volumeType = CreateParameter("Volume type", "Deposit percent", new[] { "Contracts", "Contract currency", "Deposit percent" }, "Base");
@@ -144,6 +212,7 @@ namespace OsEngine.Robots.FuturesStart
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime", "Base");
 
             _contangoFilterRegime = CreateParameter("Contango filter regime", "On_MOEXStocksAuto", new[] { "Off", "On_MOEXStocksAuto", "On_Manual" }, "Contango");
+            _contangoFilterCountSecurities = CreateParameter("Contango filter count securities", 3, 1, 2, 1, "Contango");
             _contangoStageToTradeLong = CreateParameter("Contango stage to trade Long", 1, 1, 2, 1, "Contango");
             _contangoStageToTradeShort = CreateParameter("Contango stage to trade Short", 2, 1, 2, 1, "Contango");
 
@@ -160,6 +229,17 @@ namespace OsEngine.Robots.FuturesStart
 
             StrategyParameterButton buttonShowContango = CreateParameterButton("Show contango", "Contango");
             buttonShowContango.UserClickOnButtonEvent += ButtonShowContango_UserClickOnButtonEvent;
+
+            _tradeRegimeSecurity1 = CreateParameter("Trade security 1", true, "Trade securities");
+            _tradeRegimeSecurity2 = CreateParameter("Trade security 2", true, "Trade securities");
+            _tradeRegimeSecurity3 = CreateParameter("Trade security 3", true, "Trade securities");
+            _tradeRegimeSecurity4 = CreateParameter("Trade security 4", true, "Trade securities");
+            _tradeRegimeSecurity5 = CreateParameter("Trade security 5", true, "Trade securities");
+            _tradeRegimeSecurity6 = CreateParameter("Trade security 6", true, "Trade securities");
+            _tradeRegimeSecurity7 = CreateParameter("Trade security 7", true, "Trade securities");
+            _tradeRegimeSecurity8 = CreateParameter("Trade security 8", true, "Trade securities");
+            _tradeRegimeSecurity9 = CreateParameter("Trade security 9", true, "Trade securities");
+            _tradeRegimeSecurity10 = CreateParameter("Trade security 10", true, "Trade securities");
 
             // Source creation
 
@@ -224,6 +304,10 @@ namespace OsEngine.Robots.FuturesStart
             CreateIndicators(_base10, _futs10);
 
             ParametrsChangeByUser += FuturesStartContangoScreener_ParametrsChangeByUser;
+
+            Description = OsLocalization.ConvertToLocString(
+              "Eng:Trend futures screener on the Bollinger channel breakout. With a filter by the stage of the futures deviation from the base. Designed for the MOEX stock futures market_" +
+              "Ru:Трендовый скринер фьючерсов на пробое канала Боллинджер. С фильтром по стадии отклонения фьючерса от базы. Рассчитана на рынок фьючерсов на акции MOEX_");
         }
 
         private void ButtonShowContango_UserClickOnButtonEvent()
@@ -454,6 +538,11 @@ namespace OsEngine.Robots.FuturesStart
                 SetContangoValues(baseSource, futuresSource);
             }
 
+            if (CanTradeThisSecurity(baseSource.Security.Name) == false)
+            {
+                return;
+            }
+
             List<Position> futuresPositions = futuresSource.PositionsOpenAll;
 
             if(futuresPositions.Count > 0)
@@ -641,34 +730,6 @@ namespace OsEngine.Robots.FuturesStart
 
         #region Helpers
 
-        // Method for calculating MovingAverage
-        private decimal Sma(List<Candle> candles, int len, int index)
-        {
-            if (candles.Count == 0
-                || index >= candles.Count
-                || index <= 0)
-            {
-                return 0;
-            }
-
-            decimal summ = 0;
-
-            int countPoints = 0;
-
-            for (int i = index; i >= 0 && i > index - len; i--)
-            {
-                countPoints++;
-                summ += candles[i].Close;
-            }
-
-            if (countPoints == 0)
-            {
-                return 0;
-            }
-
-            return summ / countPoints;
-        }
-
         // Method for calculating the volume of entry into a position
         private decimal GetVolume(BotTabSimple tab)
         {
@@ -815,12 +876,64 @@ namespace OsEngine.Robots.FuturesStart
 
             decimal coeff = 1;
 
-            if(_contangoFilterRegime.ValueString == "On_MOEXStocksAuto"
-                && baseSource.Security.Name.Contains("MGNT") == false)
+            if(_contangoFilterRegime.ValueString == "On_MOEXStocksAuto")
             {
-                for (int i = 0; i < baseSource.Security.Decimals; i++)
+                if (baseSource.Security.Name.Contains("MGNT") == false
+                    && baseSource.Security.Name.Contains("VTB") == false
+                     && baseSource.Security.Name.Contains("GMKN") == false)
                 {
-                    coeff = coeff * 10;
+                    for (int i = 0; i < baseSource.Security.Decimals; i++)
+                    {
+                        coeff = coeff * 10;
+                    }
+                }
+                else if (baseSource.Security.Name.Contains("VTB") == true)
+                {
+                    DateTime time = baseSource.TimeServerCurrent;
+
+                    if (time.Year < 2024)
+                    {
+                        coeff = 20;
+                    }
+                    else if (time.Year == 2024
+                        && time.Month < 7)
+                    {
+                        coeff = 20;
+                    }
+                    else if (time.Year == 2024
+                            && time.Month == 7
+                            && time.Day < 15)
+                    {
+                        coeff = 20;
+                    }
+                    else
+                    {
+                        coeff = 100;
+                    }
+                }
+                else if (baseSource.Security.Name.Contains("GMKN") == true)
+                {
+                    DateTime time = baseSource.TimeServerCurrent;
+
+                    if (time.Year < 2024)
+                    {
+                        coeff = 100;
+                    }
+                    else if (time.Year == 2024
+                        && time.Month < 4)
+                    {
+                        coeff = 100;
+                    }
+                    else if (time.Year == 2024
+                            && time.Month == 4
+                            && time.Day < 4)
+                    {
+                        coeff = 100;
+                    }
+                    else
+                    {
+                        coeff = 10;
+                    }
                 }
             }
             else if (_contangoFilterRegime.ValueString == "On_Manual") 
@@ -892,11 +1005,11 @@ namespace OsEngine.Robots.FuturesStart
             {
                 if (_contangoValues[i].SecurityName == secName)
                 {
-                    if(i <= _contangoValues.Count /3)
+                    if(i <= _contangoFilterCountSecurities.ValueInt)
                     {
                         return 1;
                     }
-                    else if (i >= _contangoValues.Count / 3)
+                    else if (i >= _contangoValues.Count - _contangoFilterCountSecurities.ValueInt)
                     {
                         return 2;
                     }
