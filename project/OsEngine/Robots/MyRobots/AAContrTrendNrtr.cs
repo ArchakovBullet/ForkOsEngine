@@ -15,25 +15,12 @@ using OsEngine.Market;
 using System.Drawing;
 using OsEngine.Language;
 
-/* Description
-trading robot for osengine
 
-Counter-trend robot based on NRTR and ROC indicators.
-
-Buy: When the candle closes below the NRTR line and the ROC indicator value is below the buy level from the parameters.
-
-Sell: When the candle closed above the NRTR line and the ROC indicator value is above the sales level from the parameters.
-
-Exit from buy: When the candle closed above the NRTR line.
-
-Exit from sell: When the candle closed below the NRTR line.
-
- */
 
 namespace OsEngine.Robots.MyBots
 {
-    [Bot("AAContrTrendNrtrAndROC")] // We create an attribute so that we don't write anything to the BotFactory
-    public class AAContrTrendNrtrAndROC : BotPanel
+    [Bot("AAContrTrendNrtr")] // We create an attribute so that we don't write anything to the BotFactory
+    public class AAContrTrendNrtr : BotPanel
     {
         private BotTabSimple _tab;
 
@@ -53,13 +40,13 @@ namespace OsEngine.Robots.MyBots
         private StrategyParameterDecimal _deviationNrtr;
         private StrategyParameterDecimal _buyValue;
         private StrategyParameterDecimal _sellValue;
-        private StrategyParameterInt _lengthROC;
+        //private StrategyParameterInt _lengthROC;
 
         // Indicator
         private Aindicator _nrtr;
-        private Aindicator _ROC;
+        //private Aindicator _ROC;
 
-        public AAContrTrendNrtrAndROC(string name, StartProgram startProgram) : base(name, startProgram)
+        public AAContrTrendNrtr(string name, StartProgram startProgram) : base(name, startProgram)
         {
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
@@ -78,7 +65,7 @@ namespace OsEngine.Robots.MyBots
             // Indicator settings
             _lengthNrtr = CreateParameter("Length NRTR", 24, 5, 100, 5, "Indicator");
             _deviationNrtr = CreateParameter("Deviation NRTR", 1, 1m, 10, 1, "Indicator");
-            _lengthROC = CreateParameter("Length ROC", 14, 10, 200, 5, "Indicator");
+            //_lengthROC = CreateParameter("Length ROC", 14, 10, 200, 5, "Indicator");
             _buyValue = CreateParameter("Buy Value", 1.0m, 1, 10, 1, "Indicator");
             _sellValue = CreateParameter("Sell Value", 1.0m, 1, 10, 1, "Indicator");
 
@@ -90,10 +77,10 @@ namespace OsEngine.Robots.MyBots
             _nrtr.Save();
 
             // Create indicator Roc
-            _ROC = IndicatorsFactory.CreateIndicatorByName("ROC", name + "ROC", false);
-            _ROC = (Aindicator)_tab.CreateCandleIndicator(_ROC, "NewArea");
-            ((IndicatorParameterInt)_ROC.Parameters[0]).ValueInt = _lengthROC.ValueInt;
-            _ROC.Save();
+            //_ROC = IndicatorsFactory.CreateIndicatorByName("ROC", name + "ROC", false);
+            //_ROC = (Aindicator)_tab.CreateCandleIndicator(_ROC, "NewArea");
+            //((IndicatorParameterInt)_ROC.Parameters[0]).ValueInt = _lengthROC.ValueInt;
+            //_ROC.Save();
 
             // Subscribe to the indicator update event
             ParametrsChangeByUser += AAContrTrendNrtr_ParametrsChangeByUser;
@@ -110,15 +97,15 @@ namespace OsEngine.Robots.MyBots
             ((IndicatorParameterDecimal)_nrtr.Parameters[1]).ValueDecimal = _deviationNrtr.ValueDecimal;
             _nrtr.Save();
             _nrtr.Reload();
-            ((IndicatorParameterInt)_ROC.Parameters[0]).ValueInt = _lengthROC.ValueInt;
-            _ROC.Save();
-            _ROC.Reload();
+            //((IndicatorParameterInt)_ROC.Parameters[0]).ValueInt = _lengthROC.ValueInt;
+            //_ROC.Save();
+            //_ROC.Reload();
         }
 
         // The name of the robot in OsEngine
         public override string GetNameStrategyType()
         {
-            return "AAContrTrendNrtrAndROC";
+            return "AAContrTrendNrtr";
         }
         public override void ShowIndividualSettingsDialog()
         {
@@ -135,8 +122,8 @@ namespace OsEngine.Robots.MyBots
             }
 
             // If there are not enough candles to build an indicator, we exit
-            if (candles.Count < _lengthNrtr.ValueInt || candles.Count < _lengthROC.ValueInt)
-            {
+            if (candles.Count < _lengthNrtr.ValueInt)// || candles.Count < _lengthROC.ValueInt
+			{
                 return;
             }
 
@@ -173,10 +160,10 @@ namespace OsEngine.Robots.MyBots
         {
             // The last value of the indicator
             decimal lastNRTR = _nrtr.DataSeries[2].Last;
-            decimal lastROC = _ROC.DataSeries[0].Last;
+            //decimal lastROC = _ROC.DataSeries[0].Last;
 
-            // The prev value of the indicator
-            decimal prevROC = _ROC.DataSeries[0].Values[_ROC.DataSeries[0].Values.Count - 2];
+            //// The prev value of the indicator
+            //decimal prevROC = _ROC.DataSeries[0].Values[_ROC.DataSeries[0].Values.Count - 2];
 
             decimal lastPrice = candles[candles.Count - 1].Close;
 
@@ -190,8 +177,8 @@ namespace OsEngine.Robots.MyBots
                 // Long
                 if (_regime.ValueString != "OnlyShort") // If the mode is not only short, then we enter long
                 {
-                    if (lastPrice < lastNRTR && lastROC < -_buyValue.ValueDecimal)
-                    {
+                    if (lastPrice > lastNRTR)// && lastROC < -_buyValue.ValueDecimal
+					{
                         _tab.BuyAtLimit(GetVolume(_tab), _tab.PriceBestAsk + slippage);
                     }
                 }
@@ -199,8 +186,8 @@ namespace OsEngine.Robots.MyBots
                 // Short
                 if (_regime.ValueString != "OnlyLong") // If the mode is not only long, then we enter short
                 {
-                    if (lastPrice > lastNRTR && lastROC > _sellValue.ValueDecimal)
-                    {
+                    if (lastPrice < lastNRTR)// && lastROC > _sellValue.ValueDecimal
+					{
                         _tab.SellAtLimit(GetVolume(_tab), _tab.PriceBestBid - slippage);
                     }
                 }
@@ -229,14 +216,14 @@ namespace OsEngine.Robots.MyBots
 
                 if (pos.Direction == Side.Buy) // If the direction of the position is purchase
                 {
-                    if (lastPrice > lastNRTR)
+                    if (lastPrice < lastNRTR)
                     {
                         _tab.CloseAtLimit(pos, lastPrice - _slippage, pos.OpenVolume);
                     }
                 }
                 else // If the direction of the position is sale
                 {
-                    if (lastPrice < lastNRTR)
+                    if (lastPrice > lastNRTR)
                     {
                         _tab.CloseAtLimit(pos, lastPrice + _slippage, pos.OpenVolume);
                     }
@@ -244,104 +231,96 @@ namespace OsEngine.Robots.MyBots
             }
         }
 
-        // Method for calculating the volume of entry into a position
-        private decimal GetVolume(BotTabSimple tab)
-        {
-            decimal volume = 0;
+		// Method for calculating the volume of entry into a position
+		private decimal GetVolume(BotTabSimple tab)
+		{
+			decimal volume = 0;
 
-            if (_volumeType.ValueString == "Contracts")
-            {
-                volume = _volume.ValueDecimal;
-            }
-            else if (_volumeType.ValueString == "Contract currency")
-            {
-                decimal contractPrice = tab.PriceBestAsk;
-                volume = _volume.ValueDecimal / contractPrice;
+			if (_volumeType.ValueString == "Contracts")
+			{
+				volume = _volume.ValueDecimal;
+			}
+			else if (_volumeType.ValueString == "Contract currency")
+			{
+				decimal contractPrice = tab.PriceBestAsk;
+				volume = _volume.ValueDecimal / contractPrice;
 
-                if (StartProgram == StartProgram.IsOsTrader)
-                {
-                    IServerPermission serverPermission = ServerMaster.GetServerPermission(tab.Connector.ServerType);
+				if (StartProgram == StartProgram.IsOsTrader)
+				{
+					IServerPermission serverPermission = ServerMaster.GetServerPermission(tab.Connector.ServerType);
 
-                    if (serverPermission != null &&
-                        serverPermission.IsUseLotToCalculateProfit &&
-                    tab.Security.Lot != 0 &&
-                        tab.Security.Lot > 1)
-                    {
-                        volume = _volume.ValueDecimal / (contractPrice * tab.Security.Lot);
-                    }
+					if (serverPermission != null &&
+						serverPermission.IsUseLotToCalculateProfit &&
+						tab.Security.Lot != 0 &&
+						tab.Security.Lot > 1)
+					{
+						volume = _volume.ValueDecimal / (contractPrice * tab.Security.Lot);
+					}
 
-                    volume = Math.Round(volume, tab.Security.DecimalsVolume);
-                }
-                else // Tester or Optimizer
-                {
-                    volume = Math.Round(volume, 6);
-                }
-            }
-            else if (_volumeType.ValueString == "Deposit percent")
-            {
-                Portfolio myPortfolio = tab.Portfolio;
+					volume = Math.Round(volume, tab.Security.DecimalsVolume);
+				}
+				else // Tester or Optimizer
+				{
+					volume = Math.Round(volume, 6);
+				}
+			}
+			else if (_volumeType.ValueString == "Deposit percent")
+			{
+				Portfolio myPortfolio = tab.Portfolio;
 
-                if (myPortfolio == null)
-                {
-                    return 0;
-                }
+				if (myPortfolio == null)
+				{
+					return 0;
+				}
 
-                decimal portfolioPrimeAsset = 0;
+				decimal portfolioPrimeAsset = 0;
 
-                if (_tradeAssetInPortfolio.ValueString == "Prime")
-                {
-                    portfolioPrimeAsset = myPortfolio.ValueCurrent;
-                }
-                else
-                {
-                    List<PositionOnBoard> positionOnBoard = myPortfolio.GetPositionOnBoard();
+				if (_tradeAssetInPortfolio.ValueString == "Prime")
+				{
+					portfolioPrimeAsset = myPortfolio.ValueCurrent;
+				}
+				else
+				{
+					List<PositionOnBoard> positionOnBoard = myPortfolio.GetPositionOnBoard();
 
-                    if (positionOnBoard == null)
-                    {
-                        return 0;
-                    }
+					if (positionOnBoard == null)
+					{
+						return 0;
+					}
 
-                    for (int i = 0; i < positionOnBoard.Count; i++)
-                    {
-                        if (positionOnBoard[i].SecurityNameCode == _tradeAssetInPortfolio.ValueString)
-                        {
-                            portfolioPrimeAsset = positionOnBoard[i].ValueCurrent;
-                            break;
-                        }
-                    }
-                }
+					for (int i = 0; i < positionOnBoard.Count; i++)
+					{
+						if (positionOnBoard[i].SecurityNameCode == _tradeAssetInPortfolio.ValueString)
+						{
+							portfolioPrimeAsset = positionOnBoard[i].ValueCurrent;
+							break;
+						}
+					}
+				}
 
-                if (portfolioPrimeAsset == 0)
-                {
-                    SendNewLogMessage("Can`t found portfolio " + _tradeAssetInPortfolio.ValueString, Logging.LogMessageType.Error);
-                    return 0;
-                }
+				if (portfolioPrimeAsset == 0)
+				{
+					SendNewLogMessage("Can`t found portfolio " + _tradeAssetInPortfolio.ValueString, Logging.LogMessageType.Error);
+					return 0;
+				}
 
-                decimal moneyOnPosition = portfolioPrimeAsset * (_volume.ValueDecimal / 100);
+				decimal moneyOnPosition = portfolioPrimeAsset * (_volume.ValueDecimal / 100);
 
-                decimal qty = moneyOnPosition / tab.PriceBestAsk / tab.Security.Lot;
+				decimal qty = moneyOnPosition / tab.PriceBestAsk / tab.Security.Lot;
 
-                if (tab.StartProgram == StartProgram.IsOsTrader)
-                {
-                    if (tab.Security.UsePriceStepCostToCalculateVolume == true
-                       && tab.Security.PriceStep != tab.Security.PriceStepCost
-                       && tab.PriceBestAsk != 0
-                       && tab.Security.PriceStep != 0
-                       && tab.Security.PriceStepCost != 0)
-                    {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
-                        qty = moneyOnPosition / (tab.PriceBestAsk / tab.Security.PriceStep * tab.Security.PriceStepCost);
-                    }
-                    qty = Math.Round(qty, tab.Security.DecimalsVolume);
-                }
-                else
-                {
-                    qty = Math.Round(qty, 7);
-                }
+				if (tab.StartProgram == StartProgram.IsOsTrader)
+				{
+					qty = Math.Round(qty, tab.Security.DecimalsVolume);
+				}
+				else
+				{
+					qty = Math.Round(qty, 7);
+				}
 
-                return qty;
-            }
+				return qty;
+			}
 
-            return volume;
-        }
-    }
+			return volume;
+		}
+	}
 }
