@@ -10,36 +10,32 @@ using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using OsEngine.Market.Servers;
 using OsEngine.Market;
-using System.Drawing;
 using OsEngine.Language;
 
 /* Description
 trading robot for osengine
 
-The trend robot on strategy ADX Break Plus Minus.
+The countertrend robot on Force Index.
 
-Buy:
-1. DM+ crossed DM- from bottom to top.
-2. ADX is more than DM-.
-3. ADX rising.
+Buy: the value of the force index indicator is below 0, but it began to grow.
 
-Sell:
-1. DM+ crossed DM- from top to bottom.
-2. ADX is more than DM+.
-3. ADX rising.
+Sell: the value of the force index indicator is above zero, but it began to fall.
 
-Exit: by DM reverse intersection.
+Exit from buy: trailing stop in % of the loy of the candle on which you entered.
+
+Exit from sell: trailing stop in % of the high of the candle on which you entered.
  */
 
 namespace OsEngine.Robots
 {
-    [Bot("AAADXBreakPlusMinus")] // Instead of manually adding through BotFactory, we use an attribute to simplify the process.
-    public class ADXBreakPlusMinus : BotPanel
+	// Использую индикатор ForceIndexZero с параметром 43 --- 19.08.2025
+
+
+	[Bot("AACounterTrendFIZero")] // We create an attribute so that we don't write anything to the BotFactory
+    public class AACounterTrendFIZero : BotPanel
     {
-        // Reference to the main trading tab
         private BotTabSimple _tab;
 
         // Basic Settings
@@ -54,28 +50,26 @@ namespace OsEngine.Robots
         private StrategyParameterString _tradeAssetInPortfolio;
 
         // Indicator setting 
-        private StrategyParameterInt _periodADX;
+        private StrategyParameterInt _lengthFI;
 
         // Indicator
-        private Aindicator _ADX;
+        private Aindicator _FI;
+
+        // Exit Setting
+        private StrategyParameterDecimal _trailingValue;
 
         // The last value of the indicator
-        private decimal _lastPlus;
-        private decimal _lastMinus;
-        private decimal _lastADX;
+        private decimal _lastFI;
 
         // The prev value of the indicator
-        private decimal _prevPlus;
-        private decimal _prevMinus;
-        private decimal _prevADX;
+        private decimal _prevFI;
 
-        public ADXBreakPlusMinus(string name, StartProgram startProgram) : base(name, startProgram)
+        public AACounterTrendFIZero(string name, StartProgram startProgram) : base(name, startProgram)
         {
-            // Create and assign the main trading tab
             TabCreate(BotTabType.Simple);
             _tab = TabsSimple[0];
 
-            // Basic setting
+            // Basic settings
             _regime = CreateParameter("Regime", "Off", new[] { "Off", "On", "OnlyLong", "OnlyShort", "OnlyClosePosition" }, "Base");
             _slippage = CreateParameter("Slippage %", 0m, 0, 20, 1, "Base");
             _startTradeTime = CreateParameterTimeOfDay("Start Trade Time", 0, 0, 0, 0, "Base");
@@ -87,36 +81,38 @@ namespace OsEngine.Robots
             _tradeAssetInPortfolio = CreateParameter("Asset in portfolio", "Prime");
 
             // Indicator setting
-            _periodADX = CreateParameter("Period ADX", 10, 10, 300, 10, "Indicator");
+            _lengthFI = CreateParameter("FI Length", 43, 7, 48, 7, "Indicator");
 
-            // Create indicator ADX
-            _ADX = IndicatorsFactory.CreateIndicatorByName("ADX", name + "ADX", false);
-            _ADX = (Aindicator)_tab.CreateCandleIndicator(_ADX, "NewArea");
-            ((IndicatorParameterInt)_ADX.Parameters[0]).ValueInt = _periodADX.ValueInt;
-            _ADX.Save();
+            // Create indicator FI
+            _FI = IndicatorsFactory.CreateIndicatorByName("ForceIndexZero", name + "ForceIndexZero", false);
+            _FI = (Aindicator)_tab.CreateCandleIndicator(_FI, "NewArea");
+            ((IndicatorParameterInt)_FI.Parameters[0]).ValueInt = _lengthFI.ValueInt;
+            _FI.Save();
+
+            // Exit Setting
+            _trailingValue = CreateParameter("Stop Value", 1.0m, 5, 200, 5, "Exit");
 
             // Subscribe to the indicator update event
-            ParametrsChangeByUser += ADXBreakPlusMinus_ParametrsChangeByUser; ;
+            ParametrsChangeByUser += CounterTrendFI_ParametrsChangeByUser; ;
 
             // Subscribe to the candle finished event
             _tab.CandleFinishedEvent += _tab_CandleFinishedEvent;
 
-            Description = OsLocalization.Description.DescriptionLabel128;
+            Description = OsLocalization.Description.DescriptionLabel190;
         }
 
-        private void ADXBreakPlusMinus_ParametrsChangeByUser()
+        private void CounterTrendFI_ParametrsChangeByUser()
         {
-            ((IndicatorParameterInt)_ADX.Parameters[0]).ValueInt = _periodADX.ValueInt;
-            _ADX.Save();
-            _ADX.Reload();
+            ((IndicatorParameterInt)_FI.Parameters[0]).ValueInt = _lengthFI.ValueInt;
+            _FI.Save();
+            _FI.Reload();
         }
 
         // The name of the robot in OsEngine
         public override string GetNameStrategyType()
         {
-            return "AAADXBreakPlusMinus";
+            return "AACounterTrendFIZero";
         }
-
         public override void ShowIndividualSettingsDialog()
         {
 
@@ -132,7 +128,7 @@ namespace OsEngine.Robots
             }
 
             // If there are not enough candles to build an indicator, we exit
-            if (candles.Count < _periodADX.ValueInt)
+            if (candles.Count < _lengthFI.ValueInt)
             {
                 return;
             }
@@ -169,14 +165,10 @@ namespace OsEngine.Robots
         private void LogicOpenPosition(List<Candle> candles)
         {
             // The last value of the indicator
-            _lastADX = _ADX.DataSeries[0].Last;
-            _lastPlus = _ADX.DataSeries[1].Last;
-            _lastMinus = _ADX.DataSeries[2].Last;
+            _lastFI = _FI.DataSeries[0].Last;
 
             // The prev value of the indicator
-            _prevADX = _ADX.DataSeries[0].Values[_ADX.DataSeries[0].Values.Count - 2];
-            _prevPlus = _ADX.DataSeries[1].Values[_ADX.DataSeries[1].Values.Count - 2];
-            _prevMinus = _ADX.DataSeries[2].Values[_ADX.DataSeries[2].Values.Count - 2];
+            _prevFI = _FI.DataSeries[0].Values[_FI.DataSeries[0].Values.Count - 2];
 
             List<Position> openPositions = _tab.PositionsOpenAll;
 
@@ -190,7 +182,7 @@ namespace OsEngine.Robots
                 // Long
                 if (_regime.ValueString != "OnlyShort") // If the mode is not only short, then we enter long
                 {
-                    if (_prevPlus < _prevMinus && _lastPlus > _lastMinus && _lastADX > _lastMinus && _lastADX > _prevADX)
+                    if (_lastFI < 0 && _prevFI < _lastFI)
                     {
                         _tab.BuyAtLimit(GetVolume(_tab), _tab.PriceBestAsk + _slippage);
                     }
@@ -199,7 +191,7 @@ namespace OsEngine.Robots
                 // Short
                 if (_regime.ValueString != "OnlyLong") // If the mode is not only long, then we enter short
                 {
-                    if (_prevMinus < _prevPlus && _lastMinus > _lastPlus && _lastADX > _lastPlus && _lastADX > _prevADX)
+                    if (_lastFI > 0 && _prevFI > _lastFI)
                     {
                         _tab.SellAtLimit(GetVolume(_tab), _tab.PriceBestBid - _slippage);
                     }
@@ -211,14 +203,8 @@ namespace OsEngine.Robots
         private void LogicClosePosition(List<Candle> candles)
         {
             List<Position> openPositions = _tab.PositionsOpenAll;
-
-            // The last value of the indicator
-            _lastPlus = _ADX.DataSeries[1].Last;
-            _lastMinus = _ADX.DataSeries[2].Last;
-
-            decimal _slippage = this._slippage.ValueDecimal * _tab.Securiti.PriceStep;
-
-            decimal lastPrice = candles[candles.Count - 1].Close;
+            
+            decimal stopPrice;
 
             for (int i = 0; openPositions != null && i < openPositions.Count; i++)
             {
@@ -231,18 +217,15 @@ namespace OsEngine.Robots
 
                 if (pos.Direction == Side.Buy) // If the direction of the position is long
                 {
-                    if (_lastMinus > _lastPlus)
-                    {
-                        _tab.CloseAtLimit(pos, lastPrice - _slippage, pos.OpenVolume);
-                    }
+                    decimal lov = candles[candles.Count - 1].Low;
+                    stopPrice = lov - lov * _trailingValue.ValueDecimal / 100;
                 }
                 else // If the direction of the position is short
                 {
-                    if (_lastPlus > _lastMinus)
-                    {
-                        _tab.CloseAtLimit(pos, lastPrice + _slippage, pos.OpenVolume);
-                    }
+                    decimal high = candles[candles.Count - 1].High;
+                    stopPrice = high + high * _trailingValue.ValueDecimal / 100;
                 }
+                _tab.CloseAtTrailingStop(pos, stopPrice, stopPrice);
             }
         }
 
@@ -325,14 +308,6 @@ namespace OsEngine.Robots
 
                 if (tab.StartProgram == StartProgram.IsOsTrader)
                 {
-                    if (tab.Security.UsePriceStepCostToCalculateVolume == true
-                       && tab.Security.PriceStep != tab.Security.PriceStepCost
-                       && tab.PriceBestAsk != 0
-                       && tab.Security.PriceStep != 0
-                       && tab.Security.PriceStepCost != 0)
-                    {// расчёт количества контрактов для фьючерсов и опционов на Мосбирже
-                        qty = moneyOnPosition / (tab.PriceBestAsk / tab.Security.PriceStep * tab.Security.PriceStepCost);
-                    }
                     qty = Math.Round(qty, tab.Security.DecimalsVolume);
                 }
                 else
