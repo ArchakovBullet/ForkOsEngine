@@ -2096,9 +2096,9 @@ namespace OsEngine.Market.Servers.Mexc
 
         private Order GetOrderFromExchange(string userOrderId, string symbol)
         {
-            if (string.IsNullOrEmpty(userOrderId))
+            if (string.IsNullOrEmpty(userOrderId)
+                || userOrderId == "0")
             {
-                SendLogMessage("Order ID is empty", LogMessageType.Connect);
                 return null;
             }
 
@@ -2452,7 +2452,17 @@ namespace OsEngine.Market.Servers.Mexc
             }
         }
 
-        public void SetLeverage(Security security, decimal leverage) { }
+        public void SetLeverage(string securityName, string className, string leverage, string leverageLong, string leverageShort) { }
+
+        public void SetHedgeMode(string securityName, string className, string hedgeMode) { }
+
+        public void SetMarginMode(string securityName, string className, string marginMode) { }
+
+        public void SetCommonLeverage(string selectedClass, string leverage) { }
+
+        public void SetCommonHedgeMode(string selectedClass, string hedgeMode) { }
+
+        public void SetCommonMarginMode(string selectedClass, string marginMode) { }
 
         #endregion
 

@@ -1,4 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
+﻿/*
+ * Your rights to use code governed by this license https://github.com/AlexWan/OsEngine/blob/master/LICENSE
+ * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
+*/
+
+using Newtonsoft.Json.Linq;
 using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market.Servers.Entity;
@@ -518,7 +523,7 @@ namespace OsEngine.Market.Servers.MOEX
                     while (newCandle.TimeStart.Minute != 0
                         && newCandle.TimeStart.Minute % endTf != 0)
                     {
-                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(1);
+                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(-1);
                     }
                 }
                 if (startTf == 10
@@ -527,7 +532,7 @@ namespace OsEngine.Market.Servers.MOEX
                     while (newCandle.TimeStart.Minute != 0
                         && newCandle.TimeStart.Minute != 30)
                     {
-                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(1);
+                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(-1);
                     }
                 }
 
@@ -537,7 +542,7 @@ namespace OsEngine.Market.Servers.MOEX
                     while (newCandle.TimeStart.Minute != 0
                         && newCandle.TimeStart.Minute % 5 != 0)
                     {
-                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(1);
+                        newCandle.TimeStart = newCandle.TimeStart.AddMinutes(-1);
                     }
                 }
 
@@ -789,8 +794,17 @@ namespace OsEngine.Market.Servers.MOEX
 
         public event Action<SecurityVolumes> Volume24hUpdateEvent { add { } remove { } }
 
-        public void SetLeverage(Security security, decimal leverage) { }
+        public void SetLeverage(string securityName, string className, string leverage, string leverageLong, string leverageShort) { }
 
+        public void SetHedgeMode(string securityName, string className, string hedgeMode) { }
+
+        public void SetMarginMode(string securityName, string className, string marginMode) { }
+
+        public void SetCommonLeverage(string selectedClass, string leverage) { }
+
+        public void SetCommonHedgeMode(string selectedClass, string hedgeMode) { }
+
+        public void SetCommonMarginMode(string selectedClass, string marginMode) { }
         #endregion
     }
 }

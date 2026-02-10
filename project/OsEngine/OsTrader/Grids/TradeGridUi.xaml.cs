@@ -17,6 +17,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
+using System.Windows.Threading;
 
 namespace OsEngine.OsTrader.Grids
 {
@@ -141,10 +142,15 @@ namespace OsEngine.OsTrader.Grids
             {
                 ButtonPosts.Visibility = Visibility.Hidden;
                 ButtonTrailUpInstruction.Visibility = Visibility.Hidden;
+                ButtonStopAndProfit.Visibility = Visibility.Hidden;
+                ButtonError.Visibility = Visibility.Hidden;
+                ButtonBase.Visibility = Visibility.Hidden;
+                ButtonCreation.Visibility = Visibility.Hidden;
+                ButtonStopTrading.Visibility = Visibility.Hidden;
+                ButtonAutoStart.Visibility = Visibility.Hidden;
             }
             else
             {
-                ButtonPosts.Content = OsLocalization.Trader.Label639;
                 ButtonPosts.Click += ButtonPosts_Click;
             }
 
@@ -408,8 +414,87 @@ namespace OsEngine.OsTrader.Grids
 
             CheckEnabledItems();
 
+            StartButtonBlinkAnimation();
+
             Thread worker = new Thread(TableUpdateThread);
             worker.Start();
+        }
+
+        private void StartButtonBlinkAnimation()
+        {
+            DispatcherTimer timer = new DispatcherTimer();
+            int blinkCount = 0;
+            bool isGreenVisible = true;
+
+            timer.Interval = TimeSpan.FromMilliseconds(300);
+            timer.Tick += (s, e) =>
+            {
+                if (blinkCount >= 20)
+                {
+                    timer.Stop();
+                    GreenCollection.Opacity = 1;
+                    WhiteCollection.Opacity = 0;
+                    PostGreenTrailUpInstruction.Opacity = 1;
+                    PostWhiteTrailUpInstruction.Opacity = 0;
+                    PostGreenStopAndProfit.Opacity = 1;
+                    PostWhiteStopAndProfit.Opacity = 0;
+                    PostGreenError.Opacity = 1;
+                    PostWhiteError.Opacity = 0;
+                    PostGreenBase.Opacity = 1;
+                    PostWhiteBase.Opacity = 0;
+                    PostGreenCreation.Opacity = 1;
+                    PostWhiteCreation.Opacity = 0;
+                    PostGreenStopTrading.Opacity = 1;
+                    PostWhiteStopTrading.Opacity = 0;
+                    PostGreenAutoStart.Opacity = 1;
+                    PostWhiteAutoStart.Opacity = 0;
+                    return;
+                }
+
+                if (isGreenVisible)
+                {
+                    GreenCollection.Opacity = 0;
+                    WhiteCollection.Opacity = 1;
+                    PostGreenTrailUpInstruction.Opacity = 0;
+                    PostWhiteTrailUpInstruction.Opacity = 1;
+                    PostGreenStopAndProfit.Opacity = 0;
+                    PostWhiteStopAndProfit.Opacity = 1;
+                    PostGreenError.Opacity = 0;
+                    PostWhiteError.Opacity = 1;
+                    PostGreenBase.Opacity = 0;
+                    PostWhiteBase.Opacity = 1;
+                    PostGreenCreation.Opacity = 0;
+                    PostWhiteCreation.Opacity = 1;
+                    PostGreenStopTrading.Opacity = 0;
+                    PostWhiteStopTrading.Opacity = 1;
+                    PostGreenAutoStart.Opacity = 0;
+                    PostWhiteAutoStart.Opacity = 1;
+                }
+                else
+                {
+                    GreenCollection.Opacity = 1;
+                    WhiteCollection.Opacity = 0;
+                    PostGreenTrailUpInstruction.Opacity = 1;
+                    PostWhiteTrailUpInstruction.Opacity = 0;
+                    PostGreenStopAndProfit.Opacity = 1;
+                    PostWhiteStopAndProfit.Opacity = 0;
+                    PostGreenError.Opacity = 1;
+                    PostWhiteError.Opacity = 0;
+                    PostGreenBase.Opacity = 1;
+                    PostWhiteBase.Opacity = 0;
+                    PostGreenCreation.Opacity = 1;
+                    PostWhiteCreation.Opacity = 0;
+                    PostGreenStopTrading.Opacity = 1;
+                    PostWhiteStopTrading.Opacity = 0;
+                    PostGreenAutoStart.Opacity = 1;
+                    PostWhiteAutoStart.Opacity = 0;
+                }
+
+                isGreenVisible = !isGreenVisible;
+                blinkCount++;
+            };
+
+            timer.Start();
         }
 
         private void Localization()
@@ -459,6 +544,8 @@ namespace OsEngine.OsTrader.Grids
 
             LabelNonTradePeriod1IsActive.Content = OsLocalization.Trader.Label638; 
             LabelNonTradePeriod2IsActive.Content = OsLocalization.Trader.Label638;
+
+            LabelServerTime.Content = OsLocalization.Trader.Label672;
 
             // stop grid by event
             CheckBoxStopGridByMoveUpIsOn.Content = OsLocalization.Trader.Label481;
@@ -1791,7 +1878,6 @@ namespace OsEngine.OsTrader.Grids
                     return;
                 }
 
-
                 if (_gridDataGrid.InvokeRequired)
                 {
                     _gridDataGrid.Invoke(new Action(TryUpdateGridTable));
@@ -1801,6 +1887,7 @@ namespace OsEngine.OsTrader.Grids
                 TextBoxFailOpenOrdersCountFact.Text = TradeGrid.ErrorsReaction.FailOpenOrdersCountFact.ToString();
                 TextBoxFailCancelOrdersCountFact.Text = TradeGrid.ErrorsReaction.FailCancelOrdersCountFact.ToString();
 
+                TextBoxCurrentServerTime.Text = TradeGrid.Tab.TimeServerCurrent.ToShortTimeString();
 
                 if (TradeGrid.GridType == TradeGridPrimeType.OpenPosition)
                 {
@@ -2578,6 +2665,36 @@ namespace OsEngine.OsTrader.Grids
             InteractiveInstructions.Grids.Link6.ShowLinkInBrowser();
         }
 
+        private void ButtonStopAndProfit_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link21.ShowLinkInBrowser();
+        }
+
+        private void ButtonError_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link22.ShowLinkInBrowser();
+        }
+
+        private void ButtonBase_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link17.ShowLinkInBrowser();
+        }
+
+        private void ButtonCreation_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link18.ShowLinkInBrowser();
+        }
+
+        private void ButtonStopTrading_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link19.ShowLinkInBrowser();
+        }
+
+        private void ButtonAutoStart_Click(object sender, RoutedEventArgs e)
+        {
+            InteractiveInstructions.Grids.Link20.ShowLinkInBrowser();
+        }
+
         #endregion
 
         #region Regime Tab
@@ -2917,5 +3034,6 @@ namespace OsEngine.OsTrader.Grids
 
 
         #endregion
+
     }
 }

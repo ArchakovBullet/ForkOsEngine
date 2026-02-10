@@ -19,6 +19,7 @@ using OsEngine.OsTrader.SystemAnalyze;
 using System.Net.Sockets;
 using System.Text;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace OsEngine.Market.Servers
 {
@@ -229,15 +230,18 @@ namespace OsEngine.Market.Servers
                 ServerParameters[10].Comment = OsLocalization.Market.Label281;
                 ((ServerParameterButton)ServerParameters[10]).UserClickButton += AServer_UserClickNonTradePeriodsUiButton;
 
-                if (ServerPermission != null
-                    && ServerPermission.Leverage_IsSupports &&
-                        ServerPermission.Leverage_SupportClasses != null)
+                if (ServerPermission != null)
                 {
-                    Task.Run(() => GetListLeverageTask());
+                    if (ServerPermission.Leverage_IsSupports ||
+                        ServerPermission.HedgeMode_IsSupports ||
+                        ServerPermission.MarginMode_IsSupports)
+                    {
+                        Task.Run(() => GetListLeverageTask());
 
-                    CreateParameterButton(OsLocalization.Market.LeverageButton);
-                    ServerParameters[ServerParameters.Count - 1].Comment = OsLocalization.Market.LeverageButtonCommit;
-                    ((ServerParameterButton)ServerParameters[ServerParameters.Count - 1]).UserClickButton += AServer_UserClickLeverageUiButton;
+                        CreateParameterButton(OsLocalization.Market.LeverageButton);
+                        ServerParameters[ServerParameters.Count - 1].Comment = OsLocalization.Market.LeverageButtonCommit;
+                        ((ServerParameterButton)ServerParameters[ServerParameters.Count - 1]).UserClickButton += AServer_UserClickLeverageUiButton;
+                    }
                 }
 
                 if (ServerPermission != null
@@ -1093,7 +1097,7 @@ namespace OsEngine.Market.Servers
             SendLogMessage(OsLocalization.Market.Message12, LogMessageType.System);
 
             ServerStatus = ServerConnectStatus.Disconnect;
-            
+
             if (NeedToReconnectEvent != null)
             {
                 NeedToReconnectEvent();
@@ -1192,12 +1196,19 @@ namespace OsEngine.Market.Servers
                     }
 
                     if ((ServerRealization.ServerStatus != ServerConnectStatus.Connect
-                        || ServerStatus != ServerConnectStatus.Connect) && 
+                        || ServerStatus != ServerConnectStatus.Connect) &&
                         _serverStatusNeed == ServerConnectStatus.Connect &&
                        LastStartServerTime.AddSeconds(100) < DateTime.Now)
                     {
-                        if (_nonTradePeriods.CanTradeThisTime(DateTime.Now) == false)
+                        GetNonTradePeriod();
+
+                        if (_isNonTradingPeriodNow)
                         {
+                            if (ConnectStatusChangeEvent != null)
+                            {
+                                ConnectStatusChangeEvent(_serverConnectStatus.ToString());
+                            }
+
                             LastStartServerTime = DateTime.Now;
                             SendLogMessage(OsLocalization.Market.Message104, LogMessageType.System);
                             continue;
@@ -1234,16 +1245,16 @@ namespace OsEngine.Market.Servers
 
                         LastStartServerTime = DateTime.Now;
 
-                        if(NeedToReconnectEvent != null)
+                        if (NeedToReconnectEvent != null)
                         {
                             Thread worker = new Thread(SendReconnectEvent);
                             worker.Start();
                         }
-                       
+
                         continue;
                     }
 
-                    if (ServerRealization.ServerStatus == ServerConnectStatus.Connect 
+                    if (ServerRealization.ServerStatus == ServerConnectStatus.Connect
                         && _serverStatusNeed == ServerConnectStatus.Disconnect)
                     {
                         SendLogMessage(OsLocalization.Market.Message9, LogMessageType.System);
@@ -1338,9 +1349,9 @@ namespace OsEngine.Market.Servers
                     _candleManager = null;
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                SendLogMessage(ex.ToString(),LogMessageType.Error);
+                SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
         }
 
@@ -1353,7 +1364,7 @@ namespace OsEngine.Market.Servers
                     NeedToReconnectEvent();
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 SendLogMessage(ex.ToString(), LogMessageType.Error);
             }
@@ -1675,7 +1686,7 @@ namespace OsEngine.Market.Servers
                         {
                             return;
                         }
-                       
+
                         await Task.Delay(1);
                     }
                 }
@@ -1882,7 +1893,7 @@ namespace OsEngine.Market.Servers
                         {
                             return;
                         }
-                   
+
                         await Task.Delay(1);
                     }
                 }
@@ -2577,7 +2588,7 @@ namespace OsEngine.Market.Servers
         /// </summary>
         private void _candleManager_CandleUpdateEvent(CandleSeries series)
         {
-            if (series.IsMergedByCandlesFromFile == false 
+            if (series.IsMergedByCandlesFromFile == false
                 && series.CandleCreateMethodType == "TimeShiftCandle")
             {
                 series.IsMergedByCandlesFromFile = true;
@@ -2591,18 +2602,18 @@ namespace OsEngine.Market.Servers
                 {
                     List<Candle> candlesStorage = _candleStorage.GetCandles(series.Specification, _needToLoadCandlesCountParam.Value);
 
-                    if(series.TimeFrameBuilder.CandleMarketDataType == CandleMarketDataType.MarketDepth)
+                    if (series.TimeFrameBuilder.CandleMarketDataType == CandleMarketDataType.MarketDepth)
                     {
                         // нужно вставками прогружать каждую свечу по отдельности. 
                         series.CandlesAll = series.CandlesAll.Merge(candlesStorage);
 
-                        for(int i = 0; candlesStorage != null && i < candlesStorage.Count;i++)
+                        for (int i = 0; candlesStorage != null && i < candlesStorage.Count; i++)
                         {
                             Candle candle = candlesStorage[i];
 
                             bool isInArray = false;
 
-                            for(int j = 0;j < series.CandlesAll.Count;j++)
+                            for (int j = 0; j < series.CandlesAll.Count; j++)
                             {
                                 if (series.CandlesAll[j].TimeStart == candle.TimeStart)
                                 {
@@ -2618,7 +2629,7 @@ namespace OsEngine.Market.Servers
                                     break;
                                 }
                                 else if (j != 0
-                                    && candle.TimeStart > series.CandlesAll[j-1].TimeStart
+                                    && candle.TimeStart > series.CandlesAll[j - 1].TimeStart
                                     && candle.TimeStart < series.CandlesAll[j].TimeStart)
                                 {
                                     series.CandlesAll.Insert(j, candle);
@@ -2627,17 +2638,17 @@ namespace OsEngine.Market.Servers
                                 }
                             }
 
-                            if(isInArray == false)
+                            if (isInArray == false)
                             {
                                 series.CandlesAll.Add(candle);
                             }
                         }
 
-                        if(series.CandlesAll.Count > _needToLoadCandlesCountParam.Value)
+                        if (series.CandlesAll.Count > _needToLoadCandlesCountParam.Value)
                         {
-                            series.CandlesAll = 
+                            series.CandlesAll =
                                 series.CandlesAll.GetRange(
-                                    series.CandlesAll.Count - _needToLoadCandlesCountParam.Value, 
+                                    series.CandlesAll.Count - _needToLoadCandlesCountParam.Value,
                                     _needToLoadCandlesCountParam.Value);
                         }
 
@@ -4666,7 +4677,7 @@ namespace OsEngine.Market.Servers
                         SendMessageConnectorConnectInAnalysisServer();
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     SendLogMessage(ex.ToString(), LogMessageType.Error);
                     await Task.Delay(5000);
@@ -4779,7 +4790,7 @@ namespace OsEngine.Market.Servers
 
                 if (!_nonTradePeriods.CanTradeThisTime(DateTime.Now))
                 {
-                    if(_isNonTradingPeriodNow != true)
+                    if (_isNonTradingPeriodNow != true)
                     {
                         _isNonTradingPeriodNow = true;
 
@@ -4810,9 +4821,9 @@ namespace OsEngine.Market.Servers
 
         public bool IsNonTradePeriod
         {
-            get 
+            get
             {
-                return _isNonTradingPeriodNow; 
+                return _isNonTradingPeriodNow;
             }
         }
 
@@ -4822,7 +4833,7 @@ namespace OsEngine.Market.Servers
 
         private SetLeverageUi _leverageUi;
 
-        public List<SecurityLeverageData> ListLeverageData
+        public Dictionary<string, ClassLeverageData> ListLeverageData
         {
             get
             {
@@ -4830,269 +4841,17 @@ namespace OsEngine.Market.Servers
             }
         }
 
-        private List<SecurityLeverageData> _listLeverageData = new();
+        private Dictionary<string, ClassLeverageData> _listLeverageData = new();
 
         private ConcurrentQueue<SecurityLeverageData> _queueLeverage = new();
 
-        private async void GetListLeverageTask()
-        {            
-            while (true)
-            {
-                try
-                {
-                    if(IsDeleted == true)
-                    {
-                        return;
-                    }
-
-                    if (ListLeverageData == null
-                        || _securities == null
-                        || _securities.Count == 0)
-                    {
-                        await Task.Delay(1000);
-                        continue;
-                    }
-
-                    if (ListLeverageData.Count == 0)
-                    {
-                        GetListLeverage();
-                    }
-
-                    if (_serverRealization.ServerStatus == ServerConnectStatus.Disconnect)
-                    {
-                        await Task.Delay(1000);
-                        continue;
-                    }
-
-                    if (_queueLeverage == null ||
-                         _queueLeverage.Count == 0)
-                    {
-                        await Task.Delay(1000);
-                        continue;
-                    }
-
-                    SecurityLeverageData data = null;
-
-                    if (!_queueLeverage.TryDequeue(out data))
-                    {
-                        await Task.Delay(1);
-                        continue;
-                    }
-
-                    SetLeverage(data.Security, data.Leverage);
-
-                    await Task.Delay(1);
-                }
-                catch (Exception ex)
-                {
-                    SendLogMessage(ex.ToString(), LogMessageType.Error);
-                    await Task.Delay(5000);
-                }
-            }            
-        }
-
-        private void GetListLeverage()
-        {
-            _listLeverageData.Clear();
-
-            string[] leverageSupportClasses = ServerPermission.Leverage_SupportClasses;
-
-            for (int i = 0; i < _securities.Count; i++)
-            {
-                if (leverageSupportClasses == null)
-                {
-                    continue;
-                }
-
-                if (!leverageSupportClasses.Contains(_securities[i].NameClass))
-                {
-                    continue;
-                }
-
-                SecurityLeverageData data = new();
-                data.Security = _securities[i];
-                data.Leverage = GetLeverageSecurity(_securities[i]);
-
-                _listLeverageData.Add(data);
-            }
-        }
-
-        private decimal GetLeverageSecurity(Security security)
-        {
-            decimal leverage = 0;
-
-            leverage = LoadLeverageFromFile(security);
-
-            if (leverage == 0)
-            {
-                leverage = ServerPermission.Leverage_StandardValue;
-            }
-
-            return leverage;
-        }
-
-        private List<SecurityLeverageData> _listLeverageFromFile;
-
-        private decimal LoadLeverageFromFile(Security security)
-        {
-            try
-            {
-                if (_listLeverageFromFile == null)
-                {
-                    _listLeverageFromFile = new List<SecurityLeverageData>();
-
-
-                    string fileName = ServerNameUnique + "_SecuritiesLeverage";
-
-                    string filePath = @"Engine\ServerDopSettings\" + fileName + ".txt";
-
-                    if (!File.Exists(filePath))
-                    {
-                        return 0;
-                    }
-
-                    using (StreamReader reader = new StreamReader(filePath))
-                    {
-                        string line;
-
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            if (!string.IsNullOrEmpty(line))
-                            {
-                                string[] split = line.Split('|');
-
-                                decimal leverage = 0;
-
-                                if (!decimal.TryParse(split[2].Replace(",", "."), out leverage))
-                                {
-                                    leverage = ServerPermission.Leverage_StandardValue;
-                                }
-
-                                int index = _securities.FindIndex(x => x.Name == split[0] && x.NameClass == split[1]);
-
-                                if (index >= 0)
-                                {
-                                    SecurityLeverageData list = new();
-                                    list.Security = _securities[index];
-                                    list.Leverage = leverage;
-
-                                    _listLeverageFromFile.Add(list);
-                                }
-                            }
-                        }
-                        reader.Close();
-                    }
-                }
-
-                for (int i = 0; i < _listLeverageFromFile.Count; i++)
-                {
-                    if (security.Name == _listLeverageFromFile[i].Security.Name &&
-                        security.NameClass == _listLeverageFromFile[i].Security.NameClass)
-                    {
-                        return _listLeverageFromFile[i].Leverage;
-                    }
-                }
-
-                return 0;
-
-            }
-            catch (Exception ex)
-            {
-                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                return 0;
-            }
-        }
-
-        public decimal GetLeverage(Security security)
-        {
-            try
-            {
-                int index = _listLeverageData.FindIndex(x => x.Security == security);
-
-                if (index >= 0)
-                {
-                    return _listLeverageData[index].Leverage;
-                }
-
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-                return 0;
-            }
-        }
-
-        public void SetLeverage(Security security, decimal leverage)
-        {
-            try
-            {
-                int index = _listLeverageData.FindIndex(x => x.Security == security);
-
-                if (index >= 0)
-                {
-                    _listLeverageData[index].Leverage = leverage;
-
-                    SetLeverageOnExchange(_listLeverageData[index]);
-                    SaveLeverageToFile();
-                }
-            }
-            catch (Exception ex)
-            {
-                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-            }
-        }
-
-        private void SetLeverageOnExchange(SecurityLeverageData data)
-        {
-            _serverRealization.SetLeverage(data.Security, data.Leverage);
-        }
-
-        private void SaveLeverageToFile()
-        {
-            try
-            {
-                if (Directory.Exists(@"Engine\ServerDopSettings\") == false)
-                {
-                    Directory.CreateDirectory(@"Engine\ServerDopSettings\");
-                }
-
-                string fileName = ServerNameUnique + "_SecuritiesLeverage";
-
-                string filePath = @"Engine\ServerDopSettings\" + fileName + ".txt";
-
-                if (_listLeverageData == null || _listLeverageData.Count == 0)
-                {
-                    return;
-                }
-
-                using (StreamWriter writer = new StreamWriter(filePath, false))
-                {
-                    for (int i = 0; i < _listLeverageData.Count; i++)
-                    {
-                        string str = "";
-
-                        str += _listLeverageData[i].Security.Name;
-                        str += "|" + _listLeverageData[i].Security.NameClass;
-                        str += "|" + _listLeverageData[i].Leverage;
-
-                        writer.WriteLine(str);
-                    }
-
-                    writer.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
-            }
-        }
+        private bool _leverageDataDone = false;
 
         private void AServer_UserClickLeverageUiButton()
         {
             try
             {
-                if (_listLeverageData == null || _listLeverageData.Count == 0)
+                if (!_leverageDataDone)
                 {
                     CustomMessageBoxUi ui = new CustomMessageBoxUi(OsLocalization.Message.HintMessageLeverageButton);
                     ui.ShowDialog();
@@ -5131,6 +4890,429 @@ namespace OsEngine.Market.Servers
             _leverageUi.Closed -= _securitiesUi_Closed;
             _leverageUi.SecurityLeverageDataEvent -= _leverageUi_SecurityLeverageDataEvent;
             _leverageUi = null;
+        }
+
+        private async void GetListLeverageTask()
+        {
+            while (true)
+            {
+                try
+                {
+                    if (IsDeleted == true)
+                    {
+                        return;
+                    }
+
+                    if (ListLeverageData == null
+                        || _securities == null
+                        || _securities.Count == 0)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+
+                    if (ListLeverageData == null || ListLeverageData.Count == 0)
+                    {
+                        GetListLeverage();
+                    }
+
+                    if (_serverRealization.ServerStatus == ServerConnectStatus.Disconnect)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+
+                    if (_queueLeverage == null ||
+                         _queueLeverage.Count == 0)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+
+                    SecurityLeverageData data = null;
+
+                    if (!_queueLeverage.TryDequeue(out data))
+                    {
+                        await Task.Delay(1);
+                        continue;
+                    }
+
+                    SetLeverage(data);
+
+                    await Task.Delay(1);
+                }
+                catch (Exception ex)
+                {
+                    SendLogMessage(ex.ToString(), LogMessageType.Error);
+                    await Task.Delay(5000);
+                }
+            }
+        }
+
+        private void GetListLeverage()
+        {
+            LoadLeverageFromFile();
+
+            GetLeverageDataDefault();
+
+            if (_listLeverageData.Count > 0)
+            {
+                _leverageDataDone = true;
+            }
+
+            SaveLeverageToFile();
+
+            SetCommonLeverageOnExchange();
+        }
+
+        private void GetLeverageDataDefault()
+        {
+            if (ServerPermission.Leverage_IsSupports && ServerPermission.Leverage_Permission != null)
+            {
+                foreach (string key in ServerPermission.Leverage_Permission.Keys)
+                {
+                    if (!_listLeverageData.ContainsKey(key))
+                    {
+                        _listLeverageData[key] = new ClassLeverageData();
+                    }
+                }
+            }
+
+            if (ServerPermission.HedgeMode_IsSupports && ServerPermission.HedgeMode_Permission != null)
+            {
+                foreach (string key in ServerPermission.HedgeMode_Permission.Keys)
+                {
+                    if (!_listLeverageData.ContainsKey(key))
+                    {
+                        _listLeverageData[key] = new ClassLeverageData();
+                    }
+                }
+            }
+
+            if (ServerPermission.MarginMode_IsSupports && ServerPermission.MarginMode_Permission != null)
+            {
+                foreach (string key in ServerPermission.MarginMode_Permission.Keys)
+                {
+                    if (!_listLeverageData.ContainsKey(key))
+                    {
+                        _listLeverageData[key] = new ClassLeverageData();
+                    }
+                }
+            }
+
+            for (int i = 0; i < _securities.Count; i++)
+            {
+                string className = _securities[i].NameClass;
+
+                if (!_listLeverageData.ContainsKey(className))
+                {
+                    continue;
+                }
+
+                if (ServerPermission.Leverage_IsSupports &&
+                    ServerPermission.Leverage_Permission.ContainsKey(className) &&
+                    ServerPermission.Leverage_Permission[className].Leverage_CommonMode)
+                {
+                    _listLeverageData[className].CommonLeverage = ServerPermission.Leverage_Permission[className].Leverage_StandardValue.ToString();
+                }
+
+                if (ServerPermission.HedgeMode_IsSupports &&
+                    ServerPermission.HedgeMode_Permission.ContainsKey(className) &&
+                    ServerPermission.HedgeMode_Permission[className].HedgeMode_CommonMode)
+                {
+                    _listLeverageData[className].CommonHedgeMode = ServerPermission.HedgeMode_Permission[className].HedgeMode_StandardValue.ToString();
+                }
+
+                if (ServerPermission.MarginMode_IsSupports &&
+                    ServerPermission.MarginMode_Permission.ContainsKey(className) &&
+                    ServerPermission.MarginMode_Permission[className].MarginMode_CommonMode)
+                {
+                    _listLeverageData[className].CommmonMarginMode = ServerPermission.MarginMode_Permission[className].MarginMode_StandardValue.ToString();
+                }
+
+                SecurityLeverageData data = new();
+
+                data.Leverage = GetLeverageCommon(_securities[i]);
+                data.LeverageLong = GetLeverageLong(_securities[i]);
+                data.LeverageShort = GetLeverageShort(_securities[i]);
+                data.HedgeMode = GetHedgeMode(_securities[i]);
+                data.MarginMode = GetMarginMode(_securities[i]);
+                data.SecurityName = _securities[i].Name;
+                data.ClassName = className;
+
+                if (_listLeverageFromFile != null)
+                {
+                    if (_listLeverageFromFile.ContainsKey(_securities[i].NameClass))
+                    {
+                        _listLeverageData[className].CommonLeverage = _listLeverageFromFile[_securities[i].NameClass].CommonLeverage;
+                        _listLeverageData[className].CommonHedgeMode = _listLeverageFromFile[_securities[i].NameClass].CommonHedgeMode;
+                        _listLeverageData[className].CommmonMarginMode = _listLeverageFromFile[_securities[i].NameClass].CommmonMarginMode;
+
+                        for (int j = 0; j < _listLeverageFromFile[_securities[i].NameClass].SecurityData.Count; j++)
+                        {
+                            SecurityLeverageData item = _listLeverageFromFile[_securities[i].NameClass].SecurityData[j];
+
+                            if (item.SecurityName == _securities[i].Name)
+                            {
+                                data.Leverage = item.Leverage;
+                                data.LeverageLong = item.LeverageLong;
+                                data.LeverageShort = item.LeverageShort;
+                                data.HedgeMode = item.HedgeMode;
+                                data.MarginMode = item.MarginMode;
+                            }
+                        }
+                    }
+                }
+
+                _listLeverageData[className].SecurityData.Add(data);
+            }
+        }
+
+        private void SetCommonLeverageOnExchange()
+        {
+            foreach (string key in _listLeverageData.Keys)
+            {
+                if (_listLeverageData[key].CommonLeverage != "")
+                {
+                    SetCommonLeverage(key, _listLeverageData[key].CommonLeverage);
+                }
+
+                if (_listLeverageData[key].CommonHedgeMode != "")
+                {
+                    SetCommonHedgeMode(key, _listLeverageData[key].CommonHedgeMode);
+                }
+
+                if (_listLeverageData[key].CommmonMarginMode != "")
+                {
+                    SetCommonMarginMode(key, _listLeverageData[key].CommmonMarginMode);
+                }
+            }
+        }
+
+        private string GetMarginMode(Security security)
+        {
+            if (!ServerPermission.MarginMode_Permission.ContainsKey(security.NameClass))
+            {
+                return "";
+            }
+
+            if (ServerPermission.MarginMode_Permission[security.NameClass].MarginMode_CommonMode)
+            {
+                return "";
+            }
+
+            return ServerPermission.MarginMode_Permission[security.NameClass].MarginMode_StandardValue;
+        }
+
+        private string GetHedgeMode(Security security)
+        {
+            if (!ServerPermission.HedgeMode_Permission.ContainsKey(security.NameClass))
+            {
+                return "";
+            }
+
+            if (ServerPermission.HedgeMode_Permission[security.NameClass].HedgeMode_CommonMode)
+            {
+                return "";
+            }
+
+            return ServerPermission.HedgeMode_Permission[security.NameClass].HedgeMode_StandardValue;
+        }
+
+        private string GetLeverageShort(Security security)
+        {
+            if (!ServerPermission.Leverage_Permission.ContainsKey(security.NameClass))
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_CommonMode)
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_IndividualLongShort)
+            {
+                if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_SupportClassesIndividualLongShort
+                        .Contains(ServerPermission.MarginMode_Permission[security.NameClass].MarginMode_StandardValue.ToString()))
+                {
+                    return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+                }
+                return "";
+            }
+
+            return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+        }
+
+        private string GetLeverageLong(Security security)
+        {
+            if (!ServerPermission.Leverage_Permission.ContainsKey(security.NameClass))
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_CommonMode)
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_IndividualLongShort)
+            {
+                if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_SupportClassesIndividualLongShort
+                        .Contains(ServerPermission.MarginMode_Permission[security.NameClass].MarginMode_StandardValue.ToString()))
+                {
+                    return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+                }
+                return "";
+            }
+
+            return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+        }
+
+        private string GetLeverageCommon(Security security)
+        {
+            if (!ServerPermission.Leverage_Permission.ContainsKey(security.NameClass))
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_CommonMode)
+            {
+                return "";
+            }
+
+            if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_IndividualLongShort)
+            {
+                if (ServerPermission.Leverage_Permission[security.NameClass].Leverage_SupportClassesIndividualLongShort
+                    .Contains(ServerPermission.MarginMode_Permission[security.NameClass].MarginMode_StandardValue.ToString()))
+                {
+                    return "";
+                }
+
+                return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+
+            }
+
+            return ServerPermission.Leverage_Permission[security.NameClass].Leverage_StandardValue.ToString();
+        }
+
+        private Dictionary<string, ClassLeverageData> _listLeverageFromFile;
+
+        private void LoadLeverageFromFile()
+        {
+            try
+            {
+                string fileName = ServerNameUnique + "_SecuritiesLeverage.json";
+
+                string filePath = @"Engine\ServerDopSettings\" + fileName;
+
+                if (!File.Exists(filePath))
+                {
+                    return;
+                }
+
+                string json = File.ReadAllText(filePath);
+
+                _listLeverageFromFile = JsonConvert.DeserializeObject<Dictionary<string, ClassLeverageData>>(json);
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+                return;
+            }
+        }
+
+        public void SetLeverage(SecurityLeverageData data)
+        {
+            try
+            {
+                int index = _listLeverageData[data.ClassName].SecurityData.FindIndex(x => x.SecurityName == data.SecurityName);
+
+                if (index >= 0)
+                {
+                    _listLeverageData[data.ClassName].SecurityData[index].Leverage = data.Leverage;
+                    _listLeverageData[data.ClassName].SecurityData[index].LeverageLong = data.LeverageLong;
+                    _listLeverageData[data.ClassName].SecurityData[index].LeverageShort = data.LeverageShort;
+                    _listLeverageData[data.ClassName].SecurityData[index].HedgeMode = data.HedgeMode;
+                    _listLeverageData[data.ClassName].SecurityData[index].MarginMode = data.MarginMode;
+
+                    SetLeverageOnExchange(_listLeverageData[data.ClassName].SecurityData[index]);
+                    SaveLeverageToFile();
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        private void SetLeverageOnExchange(SecurityLeverageData data)
+        {
+            if (data.MarginMode != "")
+            {
+                _serverRealization.SetMarginMode(data.SecurityName, data.ClassName, data.MarginMode);
+            }
+
+            if (data.HedgeMode != "")
+            {
+                _serverRealization.SetHedgeMode(data.SecurityName, data.ClassName, data.HedgeMode);
+            }
+
+            if (data.Leverage != "" || data.LeverageLong != "" || data.LeverageShort != "")
+            {
+                _serverRealization.SetLeverage(data.SecurityName, data.ClassName, data.Leverage, data.LeverageLong, data.LeverageShort);
+            }
+        }
+
+        private void SaveLeverageToFile()
+        {
+            try
+            {
+                if (Directory.Exists(@"Engine\ServerDopSettings\") == false)
+                {
+                    Directory.CreateDirectory(@"Engine\ServerDopSettings\");
+                }
+
+                string fileName = ServerNameUnique + "_SecuritiesLeverage";
+
+                string filePath = @"Engine\ServerDopSettings\" + fileName + ".json";
+
+                if (_listLeverageData == null || _listLeverageData.Count == 0)
+                {
+                    return;
+                }
+
+                string json = JsonConvert.SerializeObject(_listLeverageData, Formatting.Indented);
+                File.WriteAllText(filePath, json);
+            }
+            catch (Exception ex)
+            {
+                ServerMaster.SendNewLogMessage(ex.ToString(), Logging.LogMessageType.Error);
+            }
+        }
+
+        public void SetCommonLeverage(string selectedClass, string leverage)
+        {
+            _listLeverageData[selectedClass].CommonLeverage = leverage;
+            SaveLeverageToFile();
+
+            _serverRealization.SetCommonLeverage(selectedClass, leverage);
+        }
+
+        public void SetCommonHedgeMode(string selectedClass, string hedgeMode)
+        {
+            _listLeverageData[selectedClass].CommonHedgeMode = hedgeMode;
+            SaveLeverageToFile();
+
+            _serverRealization.SetCommonHedgeMode(selectedClass, hedgeMode);
+        }
+
+        public void SetCommonMarginMode(string selectedClass, string marginMode)
+        {
+            _listLeverageData[selectedClass].CommmonMarginMode = marginMode;
+            SaveLeverageToFile();
+
+            _serverRealization.SetCommonMarginMode(selectedClass, marginMode);
         }
 
         #endregion
