@@ -2508,8 +2508,17 @@ namespace OsEngine.Language
          "Ru:Уменьшать кол-во ордеров при нехватке депозита");
 
         public string Label672 => OsLocalization.ConvertToLocString(
+<<<<<<< HEAD
         "Eng:Current server time_" +
         "Ru:Текущее время сервера");
+=======
+         "Eng:Current server time_" +
+         "Ru:Текущее время сервера");
+
+        public string Label673 => OsLocalization.ConvertToLocString(
+         "Eng:CloseForced orders type_" +
+         "Ru:CloseForced тип ордеров");
+>>>>>>> upstream/master
 
     }
 }

@@ -551,6 +551,11 @@ namespace OsEngine.Market.Servers.Bybit
                     LoadOptionInstruments("SOL");
                 }
 
+                if (_securities.Count > 0)
+                {
+                    _securities = _securities.OrderBy(s => s.Name).ToList();
+                }
+
                 SecurityEvent?.Invoke(_securities);
             }
             catch (Exception ex)
@@ -807,7 +812,11 @@ namespace OsEngine.Market.Servers.Bybit
 
                 if (responseMessage.StatusCode != HttpStatusCode.OK)
                 {
-                    SendLogMessage($"Portfolio error. Code: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                    if (responseMessage.StatusCode != 0)
+                    {
+                        SendLogMessage($"Portfolio error. Code: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                    }
+
                     return;
                 }
 
@@ -983,7 +992,11 @@ namespace OsEngine.Market.Servers.Bybit
 
                     if (responseMessage.StatusCode != HttpStatusCode.OK)
                     {
-                        SendLogMessage($"GetPositionsInverse>. Position error: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                        if (responseMessage.StatusCode != 0)
+                        {
+                            SendLogMessage($"GetPositionsInverse>. Position error: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                        }
+
                         return positionOnBoards;
                     }
 
@@ -1107,7 +1120,11 @@ namespace OsEngine.Market.Servers.Bybit
 
                         if (responseMessage.StatusCode != HttpStatusCode.OK)
                         {
-                            SendLogMessage($"GetPositionsLinear>. Position error: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                            if (responseMessage.StatusCode != 0)
+                            {
+                                SendLogMessage($"GetPositionsLinear>. Position error: {responseMessage.StatusCode} || msg: {responseMessage.Content}", LogMessageType.Error);
+                            }
+
                             return positionOnBoards;
                         }
 
@@ -2218,7 +2235,7 @@ namespace OsEngine.Market.Servers.Bybit
                         webSocketPublicSpot.Dispose();
                         webSocketPublicSpot = null;
                     }
-                }    
+                }
             }
             catch (Exception ex)
             {
@@ -3621,6 +3638,8 @@ namespace OsEngine.Market.Servers.Bybit
 
                 string jsonPayload = parameters.Count > 0 ? GenerateQueryString(parameters) : "";
 
+                _rateGateOrders.WaitToProceed();
+
                 DateTime startTime = DateTime.Now;
                 IRestResponse responseMessage = CreatePrivateQuery(parameters, Method.POST, "/v5/order/create");
 
@@ -3705,6 +3724,8 @@ namespace OsEngine.Market.Servers.Bybit
                 parameters["orderLinkId"] = order.NumberUser.ToString();
                 parameters["price"] = newPrice.ToString().Replace(",", ".");
 
+                _rateGateOrders.WaitToProceed();
+
                 IRestResponse responseMessage = CreatePrivateQuery(parameters, Method.POST, "/v5/order/amend");
 
                 if (responseMessage.StatusCode == HttpStatusCode.OK)
@@ -3775,6 +3796,8 @@ namespace OsEngine.Market.Servers.Bybit
             try
             {
                 //order.TimeCancel = DateTimeOffset.UtcNow.UtcDateTime;
+                _rateGateOrders.WaitToProceed();
+
                 IRestResponse responseMessage = CreatePrivateQuery(parameters, Method.POST, "/v5/order/cancel");
 
                 if (responseMessage.StatusCode == HttpStatusCode.OK)
@@ -3851,6 +3874,9 @@ namespace OsEngine.Market.Servers.Bybit
                 }
 
                 parametrs.Add("symbol", security.Name.Split('.')[0]);
+
+                _rateGateOrders.WaitToProceed();
+
                 CreatePrivateQuery(parametrs, Method.POST, "/v5/order/cancel-all");
             }
             catch (Exception ex)
@@ -4349,12 +4375,13 @@ namespace OsEngine.Market.Servers.Bybit
 
         private RateGate _rateGate = new RateGate(1, TimeSpan.FromMilliseconds(15));
 
+        private RateGate _rateGateOrders = new RateGate(1, TimeSpan.FromMilliseconds(100));
+
         private string _httpClientLocker = "httpClientLocker";
 
         public bool CheckApiKeyInformation(string ApiKey)
         {
             string apiFromServer = "";
-            _rateGate.WaitToProceed();
 
             try
             {
@@ -4380,7 +4407,10 @@ namespace OsEngine.Market.Servers.Bybit
                 }
                 else
                 {
-                    SendLogMessage($"CheckApiKeyInformation>. Error. {responseMessage.StatusCode} || {responseMessage.Content}", LogMessageType.Error);
+                    if (responseMessage.StatusCode != 0)
+                    {
+                        SendLogMessage($"CheckApiKeyInformation>. Error. {responseMessage.StatusCode} || {responseMessage.Content}", LogMessageType.Error);
+                    }
                 }
 
                 if (apiFromServer.Length < 1 || apiFromServer != ApiKey)

@@ -177,6 +177,11 @@ namespace OsEngine.OsTrader.Panels
                         _botTabs[i].Clear();
                         _botTabs[i].Delete();
                         _botTabs[i].LogMessageEvent -= SendNewLogMessage;
+
+                        if(_botTabs[i].TabType == BotTabType.Screener)
+                        {
+                            ((BotTabScreener)_botTabs[i]).NewTabCreateEvent -= BotPanel_NewTabCreateEvent;
+                        }
                     }
                     _botTabs.Clear();
                     _botTabs = null;
@@ -1618,9 +1623,9 @@ position => position.State != PositionStateType.OpeningFail
         {
             try
             {
-                if (!_hostChart.CheckAccess())
+                if (!MainWindow.GetDispatcher.CheckAccess())
                 {
-                    _hostChart.Dispatcher.Invoke(new Action<string>(ShowMessageInNewThread), message);
+                    MainWindow.GetDispatcher.Invoke(new Action<string>(ShowMessageInNewThread), message);
                     return;
                 }
 
@@ -1679,6 +1684,29 @@ position => position.State != PositionStateType.OpeningFail
                     {
                         bot.CloseAllAtMarket();
                     }
+                }
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+        }
+
+        public void UpdateJournalsInRiskManager()
+        {
+            try
+            {
+                if(_riskManager == null)
+                {
+                    return;
+                }
+                _riskManager.ClearJournals();
+
+                List<Journal.Journal> journals = this.GetJournals();
+
+                for (int i2 = 0; journals != null && i2 < journals.Count; i2++)
+                {
+                    _riskManager.SetNewJournal(journals[i2]);
                 }
             }
             catch (Exception error)
@@ -2038,6 +2066,18 @@ position => position.State != PositionStateType.OpeningFail
             ReloadTab();
 
             NewTabCreateEvent?.Invoke();
+
+            UpdateJournalsInRiskManager();
+
+            if(newTab.TabType == BotTabType.Screener)
+            {
+                ((BotTabScreener)newTab).NewTabCreateEvent += BotPanel_NewTabCreateEvent;
+            }
+        }
+
+        private void BotPanel_NewTabCreateEvent(BotTabSimple newSource)
+        {
+            UpdateJournalsInRiskManager();
         }
 
         private bool ValidateTabCreation(out int number, out string nameTab)
